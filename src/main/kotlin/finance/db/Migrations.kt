@@ -9,6 +9,7 @@ object Migrations {
 
     private val scripts = listOf(
         1 to "V1__init.sql",
+        2 to "V2__budgets_recurring.sql",
     )
 
     fun apply(db: Database) = db.transaction {

@@ -14,14 +14,20 @@ import java.time.LocalDate
 
 class OperationRepository(private val db: Database) {
 
-    fun insert(entry: NewOperation, categoryId: Long, rate: BigDecimal, amountBaseMinor: Long): Long = db.transaction {
+    fun insert(
+        entry: NewOperation,
+        categoryId: Long,
+        rate: BigDecimal,
+        amountBaseMinor: Long,
+        recurringId: Long? = null,
+    ): Long = db.transaction {
         insert(
             """
-            INSERT INTO operation (category_id, amount_minor, currency, rate, amount_base_minor, occurred_on, note, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO operation (category_id, amount_minor, currency, rate, amount_base_minor, occurred_on, note, created_at, recurring_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             categoryId, entry.amountMinor, entry.currency.code, rate.toPlainString(), amountBaseMinor,
-            entry.date.toString(), entry.note, Instant.now().toString(),
+            entry.date.toString(), entry.note, Instant.now().toString(), recurringId,
         )
     }
 
@@ -43,6 +49,30 @@ class OperationRepository(private val db: Database) {
 
     fun updateCategory(id: Long, categoryId: Long): Boolean = db.transaction {
         execute("UPDATE operation SET category_id = ? WHERE id = ?", categoryId, id) > 0
+    }
+
+    fun updateAmount(id: Long, amountMinor: Long, amountBaseMinor: Long): Boolean = db.transaction {
+        execute("UPDATE operation SET amount_minor = ?, amount_base_minor = ? WHERE id = ?", amountMinor, amountBaseMinor, id) > 0
+    }
+
+    /** Sum in base currency for one category over a period. */
+    fun sumByCategory(categoryId: Long, from: LocalDate, to: LocalDate): Long = db.transaction {
+        query(
+            "SELECT COALESCE(SUM(amount_base_minor), 0) FROM operation WHERE category_id = ? AND occurred_on BETWEEN ? AND ?",
+            categoryId, from.toString(), to.toString(),
+        ) { it.getLong(1) }.single()
+    }
+
+    /** Number of operations and their sum in base currency. */
+    fun usage(categoryId: Long): Pair<Int, Long> = db.transaction {
+        query(
+            "SELECT COUNT(*), COALESCE(SUM(amount_base_minor), 0) FROM operation WHERE category_id = ?",
+            categoryId,
+        ) { it.getInt(1) to it.getLong(2) }.single()
+    }
+
+    fun moveCategory(fromId: Long, toId: Long) = db.transaction {
+        execute("UPDATE operation SET category_id = ? WHERE category_id = ?", toId, fromId)
     }
 
     fun delete(id: Long): Boolean = db.transaction {

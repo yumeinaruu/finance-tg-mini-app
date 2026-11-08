@@ -79,3 +79,64 @@ class FakeTelegram(
 
     fun clear() = calls.clear()
 }
+
+/** The whole app wired like in production, with fake Telegram, fake rates and a controllable clock. */
+class TestApp(
+    var now: java.time.LocalDateTime = LocalDate.of(2026, 11, 8).atTime(12, 0),
+    rates: Map<Currency, BigDecimal>? = mapOf(
+        Currency.USD to BigDecimal("3.000000"),
+        Currency.EUR to BigDecimal("3.400000"),
+        Currency.RUB to BigDecimal("0.036600"),
+    ),
+) {
+    val chatId = 42L
+    val telegram = FakeTelegram()
+    val db = testDatabase()
+    val today: () -> LocalDate = { now.toLocalDate() }
+    val categoryRepository = finance.repo.CategoryRepository(db)
+    val operations = finance.repo.OperationRepository(db)
+    val budgetRepository = finance.repo.BudgetRepository(db)
+    val recurringRepository = finance.repo.RecurringRepository(db)
+    val rateService = finance.rates.RateService(finance.repo.RateRepository(db), listOf(FakeRateProvider(rates = rates)), today)
+    val entries = finance.service.EntryService(categoryRepository, operations, finance.repo.PendingRepository(db), rateService)
+    val categories = finance.service.CategoryService(categoryRepository, operations, budgetRepository, recurringRepository)
+    val budgets = finance.service.BudgetService(budgetRepository, operations)
+    val recurring = finance.service.RecurringService(recurringRepository, entries)
+    val reports = finance.service.ReportService(operations)
+    val conversation = finance.bot.Conversation()
+    private val parser = finance.parse.EntryParser()
+
+    val handler = finance.bot.BotHandler(
+        telegram.api, parser, entries, reports, rateService, budgets,
+        finance.bot.CategoryFlow(telegram.api, categories, entries, conversation, today),
+        finance.bot.BudgetFlow(telegram.api, budgets, categories, today),
+        finance.bot.RecurringFlow(telegram.api, recurring, categories, parser, today),
+        conversation, today,
+    )
+
+    val scheduler = finance.bot.Scheduler(
+        telegram.api, chatId, recurring, budgets, reports, finance.repo.StateRepository(db), java.time.LocalTime.of(10, 0),
+    ) { now }
+
+    /** Sends a text message and returns the bot's reply. */
+    suspend fun send(text: String): FakeTelegram.Call {
+        telegram.clear()
+        handler.onMessage(finance.telegram.Message(100, finance.telegram.User(chatId), finance.telegram.Chat(chatId), text))
+        return telegram.last("sendMessage")
+    }
+
+    suspend fun press(data: String) {
+        telegram.clear()
+        handler.onCallback(
+            finance.telegram.CallbackQuery("cb", finance.telegram.User(chatId), finance.telegram.Message(200, chat = finance.telegram.Chat(chatId)), data),
+        )
+    }
+
+    /** Toast text of the last answered button. */
+    fun answer(): String? = telegram.last("answerCallbackQuery").body["text"]?.jsonPrimitive?.content
+
+    fun edited(): FakeTelegram.Call = telegram.last("editMessageText")
+
+    fun categoryId(name: String): Long =
+        finance.domain.CategoryType.entries.flatMap { categoryRepository.active(it) }.first { it.name == name }.id
+}

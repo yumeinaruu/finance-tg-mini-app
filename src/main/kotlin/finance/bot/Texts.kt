@@ -1,10 +1,15 @@
 package finance.bot
 
+import finance.domain.BudgetAlert
+import finance.domain.BudgetProgress
+import finance.domain.Category
 import finance.domain.CategoryType
 import finance.domain.Currency
 import finance.domain.Money
 import finance.domain.NewOperation
 import finance.domain.Operation
+import finance.domain.Recurring
+import finance.service.CategoryUsage
 import finance.service.Summary
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -39,7 +44,38 @@ object Texts {
         /month — месяц (/month октябрь, /month 10.2026)
         /last — последние 10 операций
         /undo — удалить последнюю
+        /budget — бюджеты (/budget еда 600)
+        /recurring — регулярные платежи
+        /categories — категории и слова для них
         /rate — курсы валют
+        /cancel — отменить текущий ввод
+    """.trimIndent()
+
+    val CAT_HELP = """
+        Управление категориями:
+        /cat add Спорт 🏋️ — новая категория расходов
+        /cat add +Кэшбэк 💸 — новая категория доходов
+        /cat rename Спорт Фитнес — переименовать (можно сменить emoji)
+        /cat del Спорт — удалить
+        /alias бассейн здоровье — привязать слово к категории
+        /alias del бассейн — отвязать слово
+    """.trimIndent()
+
+    val BUDGET_HELP = """
+        Бюджеты на текущий месяц:
+        /budget — прогресс по бюджетам
+        /budget еда 600 — задать лимит
+        /budget еда 0 — убрать лимит
+        /budget copy — скопировать бюджеты с прошлого месяца
+    """.trimIndent()
+
+    val RECURRING_HELP = """
+        Формат: /recurring add <название> <сумма> [валюта] <когда>
+        Когда: 15 — каждый месяц 15-го, пн — каждую неделю, 01.03 — каждый год
+        Примеры:
+        /recurring add Netflix 10 usd 15
+        /recurring add Аренда 450 1
+        /recurring add +Зарплата 2000 5
     """.trimIndent()
 
     fun date(date: LocalDate, today: LocalDate): String = when (date) {
@@ -96,7 +132,9 @@ object Texts {
         }
     }
 
-    fun monthTitle(month: YearMonth) = "📊 ${MONTHS[month.monthValue - 1]} ${month.year}"
+    fun monthName(month: YearMonth) = "${MONTHS[month.monthValue - 1]} ${month.year}"
+
+    fun monthTitle(month: YearMonth) = "📊 ${monthName(month)}"
 
     fun weekTitle(from: LocalDate, to: LocalDate) = "📊 Неделя ${from.format(DAY_MONTH)}–${to.format(DAY_MONTH)}"
 
@@ -147,4 +185,113 @@ object Texts {
 
     fun rateUnavailable(currency: Currency, date: LocalDate) =
         "Не удалось получить курс ${currency.code} на ${date.format(FULL_DATE)}, попробуй позже"
+
+    fun monthReport(month: YearMonth, summary: Summary, budgets: List<BudgetProgress>): String =
+        summary(monthTitle(month), summary) + if (budgets.isEmpty()) "" else "\n\n" + budgets(month, budgets)
+
+    private fun budgetLine(p: BudgetProgress): String {
+        val mark = when {
+            p.percent >= 100 -> " 🚨"
+            p.percent >= 80 -> " ⚠️"
+            else -> ""
+        }
+        return "${p.category.label}  ${Money.format(p.spentMinor)} / ${Money.format(p.limitMinor)}  ${bar(minOf(p.percent, 100))} ${p.percent}%$mark"
+    }
+
+    fun budgets(month: YearMonth, progress: List<BudgetProgress>): String {
+        if (progress.isEmpty()) return "На ${monthName(month)} бюджетов нет.\nЗадай лимит: /budget еда 600"
+        return buildString {
+            appendLine("💰 Бюджеты на ${monthName(month)}, $BASE:")
+            progress.forEach { appendLine(budgetLine(it)) }
+            append("Итого: ${Money.format(progress.sumOf { it.spentMinor })} / ${Money.format(progress.sumOf { it.limitMinor })}")
+        }
+    }
+
+    fun budgetSet(month: YearMonth, p: BudgetProgress) =
+        "✅ Бюджет на ${monthName(month)}: ${p.category.label} — ${Money.format(p.limitMinor)} $BASE\n" +
+            "Уже потрачено: ${Money.format(p.spentMinor)} (${p.percent}%)"
+
+    fun alert(alert: BudgetAlert): String {
+        val p = alert.progress
+        val label = p.category.label
+        if (alert.threshold >= 100) {
+            return "🚨 $label: бюджет превышен — ${Money.format(p.spentMinor)} / ${Money.format(p.limitMinor)} $BASE"
+        }
+        val left = alert.daysLeft?.let { ", осталось ${Money.format(p.limitMinor - p.spentMinor)} $BASE на $it дн." }.orEmpty()
+        return "⚠️ $label: ${Money.format(p.spentMinor)} / ${Money.format(p.limitMinor)} $BASE (${p.percent}%)$left"
+    }
+
+    fun withAlert(text: String, alert: BudgetAlert?) = if (alert == null) text else "$text\n\n${alert(alert)}"
+
+    fun categories(overview: List<Pair<Category, List<String>>>): String = buildString {
+        appendLine("📂 Категории")
+        CategoryType.entries.forEach { type ->
+            val items = overview.filter { it.first.type == type }
+            if (items.isEmpty()) return@forEach
+            appendLine()
+            appendLine(if (type == CategoryType.EXPENSE) "Расходы:" else "Доходы:")
+            items.forEach { (category, aliases) ->
+                append(category.label)
+                if (aliases.isNotEmpty()) {
+                    append(" — ")
+                    append(aliases.take(MAX_ALIASES_SHOWN).joinToString(", "))
+                    if (aliases.size > MAX_ALIASES_SHOWN) append(", …")
+                }
+                appendLine()
+            }
+        }
+        appendLine()
+        append(CAT_HELP)
+    }
+
+    fun categoryInput(type: CategoryType) =
+        "Напиши название новой категории ${if (type == CategoryType.INCOME) "доходов" else "расходов"}, " +
+            "можно с emoji, например «Спорт 🏋️».\n/cancel — отмена"
+
+    fun deleteQuestion(category: Category, usage: CategoryUsage): String {
+        val parts = buildList {
+            if (usage.operations > 0) {
+                add("${usage.operations} ${plural(usage.operations, "операция", "операции", "операций")} на ${Money.format(usage.totalMinor)} $BASE")
+            }
+            if (usage.recurring > 0) {
+                add("${usage.recurring} ${plural(usage.recurring, "регулярный платёж", "регулярных платежа", "регулярных платежей")}")
+            }
+        }
+        return "В «${category.label}» ${parts.joinToString(" и ")}. Что с ними сделать?"
+    }
+
+    fun plural(n: Int, one: String, few: String, many: String): String {
+        val mod100 = n % 100
+        val mod10 = n % 10
+        return when {
+            mod100 in 11..14 -> many
+            mod10 == 1 -> one
+            mod10 in 2..4 -> few
+            else -> many
+        }
+    }
+
+    private fun recurringBase(r: Recurring) =
+        "${r.name} — ${Money.format(r.amountMinor)} ${r.currency.code} · ${r.category.label} · ${r.schedule.describe()}"
+
+    fun recurringList(list: List<Recurring>, today: LocalDate): String =
+        if (list.isEmpty()) {
+            "Регулярных платежей нет.\n\n$RECURRING_HELP"
+        } else {
+            "🔁 Регулярные платежи:\n" + list.mapIndexed { i, r ->
+                "${i + 1}. ${recurringBase(r)} · след. ${date(r.nextRun, today)}"
+            }.joinToString("\n")
+        }
+
+    fun recurringCreated(r: Recurring, today: LocalDate) =
+        "🔁 Добавил регулярный платёж:\n${recurringBase(r)}\nПервое списание: ${date(r.nextRun, today)}"
+
+    fun recurringCategory(name: String) = "Какую категорию поставить для «$name»?"
+
+    fun recurringAdded(op: Operation, today: LocalDate): String {
+        val date = if (op.date == today) "" else " · 📅 ${date(op.date, today)}"
+        return "🔁 Добавил: ${op.note} — ${amount(op)}, ${op.category.label}$date"
+    }
+
+    private const val MAX_ALIASES_SHOWN = 8
 }

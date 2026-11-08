@@ -34,3 +34,29 @@ data class Operation(
     val date: LocalDate,
     val note: String?,
 )
+
+data class Recurring(
+    val id: Long,
+    val name: String,
+    val category: Category,
+    val amountMinor: Long,
+    val currency: Currency,
+    val schedule: Schedule,
+    val nextRun: LocalDate,
+)
+
+data class BudgetProgress(
+    val category: Category,
+    val limitMinor: Long,
+    val spentMinor: Long,
+) {
+    val percent: Int get() = (spentMinor * 100 / limitMinor).toInt()
+}
+
+data class BudgetAlert(
+    val progress: BudgetProgress,
+    /** 80 or 100. */
+    val threshold: Int,
+    /** Days left including today; null for a month other than the current one. */
+    val daysLeft: Int?,
+)

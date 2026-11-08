@@ -23,6 +23,7 @@ BOT_TOKEN=... OWNER_ID=... ./gradlew run
 | `DB_PATH` | `data/finance.db` | путь к SQLite |
 | `TIMEZONE` | `Europe/Minsk` | часовой пояс для «сегодня» и отчётов |
 | `HTTP_PORT` | `8080` | порт для `/health` (позже — API Mini App) |
+| `NOTIFY_TIME` | `10:00` | когда добавляются регулярные платежи и приходит сводка 1-го числа |
 
 ## Деплой
 

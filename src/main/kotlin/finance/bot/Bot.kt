@@ -69,7 +69,11 @@ class Bot(
             BotCommand("month", "Отчёт за месяц"),
             BotCommand("last", "Последние операции"),
             BotCommand("undo", "Удалить последнюю операцию"),
+            BotCommand("budget", "Бюджеты на месяц"),
+            BotCommand("recurring", "Регулярные платежи"),
+            BotCommand("categories", "Категории"),
             BotCommand("rate", "Курсы валют"),
+            BotCommand("cancel", "Отменить текущий ввод"),
             BotCommand("help", "Как пользоваться"),
         )
     }

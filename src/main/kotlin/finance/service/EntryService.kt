@@ -59,9 +59,18 @@ class EntryService(
 
     fun categoriesFor(type: CategoryType): List<Category> = categories.active(type)
 
-    private suspend fun save(entry: NewOperation, category: Category): Operation {
+    fun pending(pendingId: Long): NewOperation? = pending.find(pendingId)
+
+    /** Changes the amount keeping the original rate. */
+    fun updateAmount(operationId: Long, amountMinor: Long): Operation? {
+        val operation = operations.find(operationId) ?: return null
+        operations.updateAmount(operationId, amountMinor, Money.toBase(amountMinor, operation.rate))
+        return operations.find(operationId)
+    }
+
+    suspend fun save(entry: NewOperation, category: Category, recurringId: Long? = null): Operation {
         val rate = rates.rate(entry.currency, entry.date)
-        val id = operations.insert(entry, category.id, rate, Money.toBase(entry.amountMinor, rate))
+        val id = operations.insert(entry, category.id, rate, Money.toBase(entry.amountMinor, rate), recurringId)
         return checkNotNull(operations.find(id)) { "Operation $id was not saved" }
     }
 

@@ -106,6 +106,14 @@ class EntryParser {
         }
 
     companion object {
+        private val PLAIN_AMOUNT = Regex("^\\d{1,9}(?:[.,]\\d{1,2})?$")
+
+        /** Parses a bare positive amount like "600" or "12,50" into minor units. */
+        fun parseAmount(token: String): Long? {
+            if (!PLAIN_AMOUNT.matches(token.trim())) return null
+            return Money.toMinor(BigDecimal(token.trim().replace(',', '.'))).takeIf { it > 0 }
+        }
+
         const val FORMAT_HINT = "Не нашёл сумму. Пиши так: «кофе 5», «такси 20 usd», «+1500 зп», «аптека 12 вчера»"
         private const val AMBIGUOUS = "Нашёл несколько чисел и не понял, какое из них сумма. Пример: «аптека 12 05.11»"
 

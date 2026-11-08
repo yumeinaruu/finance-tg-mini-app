@@ -1,6 +1,7 @@
 package finance
 
 import java.nio.file.Path
+import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.io.path.createDirectories
 
@@ -10,6 +11,8 @@ data class Config(
     val dbPath: Path,
     val zone: ZoneId,
     val httpPort: Int,
+    /** When recurring payments are added and the monthly summary is sent. */
+    val notifyAt: LocalTime,
 ) {
     val dbUrl: String get() = "jdbc:sqlite:$dbPath"
 
@@ -26,6 +29,7 @@ data class Config(
                 dbPath = dbPath,
                 zone = ZoneId.of(env["TIMEZONE"] ?: "Europe/Minsk"),
                 httpPort = env["HTTP_PORT"]?.toIntOrNull() ?: 8080,
+                notifyAt = LocalTime.parse(env["NOTIFY_TIME"] ?: "10:00"),
             )
         }
     }

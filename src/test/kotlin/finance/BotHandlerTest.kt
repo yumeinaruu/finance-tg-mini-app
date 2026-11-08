@@ -1,24 +1,7 @@
 package finance
 
-import finance.bot.BotHandler
-import finance.domain.CategoryType
-import finance.domain.Currency
 import finance.parse.EntryParser
-import finance.rates.RateService
-import finance.repo.CategoryRepository
-import finance.repo.OperationRepository
-import finance.repo.PendingRepository
-import finance.repo.RateRepository
-import finance.service.EntryService
-import finance.service.ReportService
-import finance.telegram.CallbackQuery
-import finance.telegram.Chat
-import finance.telegram.Message
-import finance.telegram.User
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.jsonPrimitive
-import java.math.BigDecimal
-import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -26,42 +9,16 @@ import kotlin.test.assertTrue
 
 /** End-to-end scenarios: real parser, services and SQLite; fake Telegram and rates. */
 class BotHandlerTest {
-    private val chatId = 42L
-    private val today = LocalDate.of(2026, 11, 8)
-    private val telegram = FakeTelegram()
-    private val db = testDatabase()
-    private val categories = CategoryRepository(db)
+    private val app = TestApp()
+    private val telegram = app.telegram
 
-    private fun handler(
-        rates: Map<Currency, BigDecimal>? = mapOf(
-            Currency.USD to BigDecimal("3.000000"),
-            Currency.EUR to BigDecimal("3.400000"),
-            Currency.RUB to BigDecimal("0.036600"),
-        ),
-    ): BotHandler {
-        val rateService = RateService(RateRepository(db), listOf(FakeRateProvider(rates = rates))) { today }
-        val operations = OperationRepository(db)
-        val entries = EntryService(categories, operations, PendingRepository(db), rateService)
-        return BotHandler(telegram.api, EntryParser(), entries, ReportService(operations), rateService) { today }
-    }
+    private suspend fun send(text: String, target: TestApp = app) = target.send(text)
 
-    private val bot = handler()
+    private suspend fun press(data: String) = app.press(data)
 
-    private suspend fun send(text: String, handler: BotHandler = bot): FakeTelegram.Call {
-        telegram.clear()
-        handler.onMessage(Message(100, User(chatId), Chat(chatId), text))
-        return telegram.last("sendMessage")
-    }
+    private fun answer() = app.answer()
 
-    private suspend fun press(data: String) {
-        telegram.clear()
-        bot.onCallback(CallbackQuery("cb", User(chatId), Message(200, chat = Chat(chatId)), data))
-    }
-
-    private fun answer() = telegram.last("answerCallbackQuery").body["text"]?.jsonPrimitive?.content
-
-    private fun categoryId(name: String) =
-        CategoryType.entries.flatMap { categories.active(it) }.first { it.name == name }.id
+    private fun categoryId(name: String) = app.categoryId(name)
 
     @Test
     fun `known expense is saved with buttons`() = runTest {
@@ -91,7 +48,7 @@ class BotHandlerTest {
 
     @Test
     fun `missing rate is reported`() = runTest {
-        val reply = send("такси 20 usd", handler(rates = null))
+        val reply = send("такси 20 usd", TestApp(rates = null))
         assertEquals("Не удалось получить курс USD на 08.11.2026, попробуй позже", reply.text)
     }
 
@@ -101,7 +58,7 @@ class BotHandlerTest {
         assertEquals("Не знаю категорию для «бассейн» — −15.00 BYN. Куда записать?", question.text)
         val health = categoryId("Здоровье")
         assertTrue("pc:1:$health" in question.buttons)
-        assertEquals("px:1", question.buttons.last())
+        assertEquals(listOf("pn:1", "px:1"), question.buttons.takeLast(2))
         assertFalse("pc:1:${categoryId("Зарплата")}" in question.buttons, "only expense categories are offered")
 
         press("pc:1:$health")
