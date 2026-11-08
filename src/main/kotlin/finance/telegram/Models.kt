@@ -45,9 +45,10 @@ data class InlineKeyboardButton(
 @Serializable
 data class WebAppInfo(val url: String)
 
+/** [type] has no default on purpose: the client JSON skips default values, and Telegram requires the field. */
 @Serializable
 internal data class MenuButtonWebApp(
-    val type: String = "web_app",
+    val type: String,
     val text: String,
     @SerialName("web_app") val webApp: WebAppInfo,
 )

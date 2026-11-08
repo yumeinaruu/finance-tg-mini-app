@@ -71,7 +71,7 @@ class TelegramApi(private val http: HttpClient, token: String) {
 
     /** Puts a Mini App button next to the message input for all chats. */
     suspend fun setMenuButton(text: String, url: String) {
-        call<Boolean, SetChatMenuButtonRequest>("setChatMenuButton", SetChatMenuButtonRequest(MenuButtonWebApp(text = text, webApp = WebAppInfo(url))))
+        call<Boolean, SetChatMenuButtonRequest>("setChatMenuButton", SetChatMenuButtonRequest(MenuButtonWebApp(type = "web_app", text = text, webApp = WebAppInfo(url))))
     }
 
     suspend fun setMyCommands(commands: List<BotCommand>) {

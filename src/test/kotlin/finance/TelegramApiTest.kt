@@ -34,6 +34,16 @@ class TelegramApiTest {
     }
 
     @Test
+    fun `menu button is sent with its type`() = runTest {
+        val telegram = FakeTelegram()
+        telegram.api.setMenuButton("Финансы", "https://finance.example/")
+        assertEquals(
+            """{"menu_button":{"type":"web_app","text":"Финансы","web_app":{"url":"https://finance.example/"}}}""",
+            telegram.last("setChatMenuButton").raw,
+        )
+    }
+
+    @Test
     fun `api errors are raised`() = runTest {
         val telegram = FakeTelegram { """{"ok":false,"description":"Bad Request: chat not found"}""" }
         val error = assertFailsWith<TelegramException> { telegram.api.sendMessage(1, "x") }
