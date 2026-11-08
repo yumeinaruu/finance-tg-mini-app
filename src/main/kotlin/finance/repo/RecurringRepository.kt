@@ -29,11 +29,27 @@ class RecurringRepository(private val db: Database) {
     }
 
     fun dueOn(date: LocalDate): List<Recurring> = db.transaction {
-        query("$SELECT WHERE r.next_run <= ? ORDER BY r.next_run, r.id", date.toString()) { it.toRecurring() }
+        query("$SELECT WHERE r.next_run <= ? AND r.paused = 0 ORDER BY r.next_run, r.id", date.toString()) { it.toRecurring() }
     }
 
     fun setNextRun(id: Long, date: LocalDate) = db.transaction {
         execute("UPDATE recurring SET next_run = ? WHERE id = ?", date.toString(), id)
+    }
+
+    fun update(
+        id: Long,
+        name: String,
+        categoryId: Long,
+        amountMinor: Long,
+        currency: Currency,
+        schedule: Schedule,
+        nextRun: LocalDate,
+        paused: Boolean,
+    ): Boolean = db.transaction {
+        execute(
+            "UPDATE recurring SET name = ?, category_id = ?, amount_minor = ?, currency = ?, schedule = ?, next_run = ?, paused = ? WHERE id = ?",
+            name, categoryId, amountMinor, currency.code, schedule.encode(), nextRun.toString(), if (paused) 1 else 0, id,
+        ) > 0
     }
 
     fun delete(id: Long): Boolean = db.transaction {
@@ -57,11 +73,12 @@ class RecurringRepository(private val db: Database) {
         currency = Currency.valueOf(getString("currency")),
         schedule = Schedule.decode(getString("schedule")),
         nextRun = LocalDate.parse(getString("next_run")),
+        paused = getInt("paused") == 1,
     )
 
     private companion object {
         const val SELECT = """
-            SELECT r.id, r.name, r.amount_minor, r.currency, r.schedule, r.next_run,
+            SELECT r.id, r.name, r.amount_minor, r.currency, r.schedule, r.next_run, r.paused,
                    c.id AS c_id, c.name AS c_name, c.emoji AS c_emoji, c.type AS c_type
             FROM recurring r JOIN category c ON c.id = r.category_id
         """

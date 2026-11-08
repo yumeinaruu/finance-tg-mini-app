@@ -33,6 +33,7 @@ data class Operation(
     val amountBaseMinor: Long,
     val date: LocalDate,
     val note: String?,
+    val recurringId: Long? = null,
 )
 
 data class Recurring(
@@ -43,6 +44,7 @@ data class Recurring(
     val currency: Currency,
     val schedule: Schedule,
     val nextRun: LocalDate,
+    val paused: Boolean = false,
 )
 
 data class BudgetProgress(

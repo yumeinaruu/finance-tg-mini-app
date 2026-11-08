@@ -25,7 +25,7 @@ class MigrationsTest {
         val db = testDatabase()
         Migrations.apply(db)
         val versions = db.transaction { query("SELECT version FROM schema_version") { it.getInt(1) } }
-        assertEquals(listOf(1, 2), versions)
+        assertEquals(listOf(1, 2, 3), versions)
     }
 
     @Test

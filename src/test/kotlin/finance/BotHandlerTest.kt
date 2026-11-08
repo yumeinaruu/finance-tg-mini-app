@@ -199,6 +199,13 @@ class BotHandlerTest {
     }
 
     @Test
+    fun `app command sends a web app button`() = runTest {
+        val reply = send("/app")
+        assertEquals("📈 Графики, операции, бюджеты и регулярные платежи:", reply.text)
+        assertTrue("\"web_app\":{\"url\":\"https://finance.example/\"}" in reply.body.toString())
+    }
+
+    @Test
     fun `help and unknown commands`() = runTest {
         assertTrue(send("/start").text.startsWith("Привет!"))
         assertEquals("Не знаю такую команду. /help — список команд", send("/foo").text)

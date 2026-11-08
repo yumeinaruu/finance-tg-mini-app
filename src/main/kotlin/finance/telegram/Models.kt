@@ -38,8 +38,22 @@ data class CallbackQuery(
 @Serializable
 data class InlineKeyboardButton(
     val text: String,
-    @SerialName("callback_data") val callbackData: String,
+    @SerialName("callback_data") val callbackData: String? = null,
+    @SerialName("web_app") val webApp: WebAppInfo? = null,
 )
+
+@Serializable
+data class WebAppInfo(val url: String)
+
+@Serializable
+internal data class MenuButtonWebApp(
+    val type: String = "web_app",
+    val text: String,
+    @SerialName("web_app") val webApp: WebAppInfo,
+)
+
+@Serializable
+internal data class SetChatMenuButtonRequest(@SerialName("menu_button") val menuButton: MenuButtonWebApp)
 
 @Serializable
 data class InlineKeyboardMarkup(

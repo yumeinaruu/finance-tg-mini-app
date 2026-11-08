@@ -34,7 +34,7 @@ class BackupTest {
             restored.transaction {
                 assertEquals(listOf("кофе"), query("SELECT note FROM operation") { it.getString(1) })
                 assertEquals(listOf(60000L), query("SELECT limit_minor FROM budget") { it.getLong(1) })
-                assertEquals(listOf(1, 2), query("SELECT version FROM schema_version") { it.getInt(1) })
+                assertEquals(listOf(1, 2, 3), query("SELECT version FROM schema_version") { it.getInt(1) })
             }
         }
     }

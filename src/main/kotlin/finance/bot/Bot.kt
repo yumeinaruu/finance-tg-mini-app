@@ -14,6 +14,7 @@ class Bot(
     private val api: TelegramApi,
     private val handler: BotHandler,
     private val ownerId: Long,
+    private val miniAppUrl: String? = null,
 ) {
     private val log = LoggerFactory.getLogger(Bot::class.java)
 
@@ -22,6 +23,13 @@ class Bot(
             api.setMyCommands(COMMANDS)
         } catch (e: Exception) {
             log.warn("Failed to set bot commands: {}", e.message)
+        }
+        miniAppUrl?.let { url ->
+            try {
+                api.setMenuButton("Финансы", url)
+            } catch (e: Exception) {
+                log.warn("Failed to set menu button: {}", e.message)
+            }
         }
 
         var offset: Long? = null
@@ -64,6 +72,7 @@ class Bot(
         const val RETRY_DELAY_MS = 5_000L
 
         val COMMANDS = listOf(
+            BotCommand("app", "Открыть Mini App"),
             BotCommand("today", "Операции за сегодня"),
             BotCommand("week", "Итог недели"),
             BotCommand("month", "Отчёт за месяц"),

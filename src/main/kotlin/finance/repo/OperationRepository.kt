@@ -51,6 +51,13 @@ class OperationRepository(private val db: Database) {
         execute("UPDATE operation SET category_id = ? WHERE id = ?", categoryId, id) > 0
     }
 
+    fun update(id: Long, categoryId: Long, entry: NewOperation, rate: BigDecimal, amountBaseMinor: Long): Boolean = db.transaction {
+        execute(
+            "UPDATE operation SET category_id = ?, amount_minor = ?, currency = ?, rate = ?, amount_base_minor = ?, occurred_on = ?, note = ? WHERE id = ?",
+            categoryId, entry.amountMinor, entry.currency.code, rate.toPlainString(), amountBaseMinor, entry.date.toString(), entry.note, id,
+        ) > 0
+    }
+
     fun updateAmount(id: Long, amountMinor: Long, amountBaseMinor: Long): Boolean = db.transaction {
         execute("UPDATE operation SET amount_minor = ?, amount_base_minor = ? WHERE id = ?", amountMinor, amountBaseMinor, id) > 0
     }
@@ -88,11 +95,12 @@ class OperationRepository(private val db: Database) {
         amountBaseMinor = getLong("amount_base_minor"),
         date = LocalDate.parse(getString("occurred_on")),
         note = getString("note"),
+        recurringId = getLong("recurring_id").takeIf { !wasNull() },
     )
 
     private companion object {
         const val SELECT = """
-            SELECT o.id, o.amount_minor, o.currency, o.rate, o.amount_base_minor, o.occurred_on, o.note,
+            SELECT o.id, o.amount_minor, o.currency, o.rate, o.amount_base_minor, o.occurred_on, o.note, o.recurring_id,
                    c.id AS c_id, c.name AS c_name, c.emoji AS c_emoji, c.type AS c_type
             FROM operation o JOIN category c ON c.id = o.category_id
         """

@@ -1,5 +1,8 @@
 package finance
 
+import finance.api.Api
+import finance.api.InitDataValidator
+import finance.api.financeApi
 import finance.bot.Bot
 import finance.bot.BotHandler
 import finance.bot.BudgetFlow
@@ -24,6 +27,7 @@ import finance.service.BackupService
 import finance.service.BudgetService
 import finance.service.CategoryService
 import finance.service.EntryService
+import finance.service.ExportService
 import finance.service.RecurringService
 import finance.service.ReportService
 import finance.telegram.TelegramApi
@@ -31,9 +35,6 @@ import finance.telegram.configureDefaults
 import io.ktor.client.HttpClient
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.response.respondText
-import io.ktor.server.routing.get
-import io.ktor.server.routing.routing
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -74,14 +75,14 @@ fun main() {
         CategoryFlow(api, categories, entries, conversation, today),
         BudgetFlow(api, budgets, categories, today),
         RecurringFlow(api, recurring, categories, parser, today),
-        backups, conversation, today,
+        backups, conversation, today, config.miniAppUrl,
     )
     val scheduler = Scheduler(api, config.ownerId, recurring, budgets, reports, StateRepository(db), backups, config.notifyAt) {
         LocalDateTime.now(config.zone)
     }
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    scope.launch { Bot(api, handler, config.ownerId).run() }
+    scope.launch { Bot(api, handler, config.ownerId, config.miniAppUrl).run() }
     scope.launch { scheduler.run() }
     scope.launch {
         while (true) {
@@ -93,8 +94,20 @@ fun main() {
     Runtime.getRuntime().addShutdownHook(Thread { db.close() })
 
     embeddedServer(CIO, port = config.httpPort) {
-        routing {
-            get("/health") { call.respondText("ok") }
-        }
+        financeApi(
+            Api(
+                validator = InitDataValidator(config.botToken, config.ownerId),
+                categories = categoryRepository,
+                operations = operations,
+                entries = entries,
+                reports = reports,
+                budgets = budgets,
+                recurring = recurring,
+                export = ExportService(operations),
+                telegram = api,
+                ownerId = config.ownerId,
+                today = today,
+            ),
+        )
     }.start(wait = true)
 }

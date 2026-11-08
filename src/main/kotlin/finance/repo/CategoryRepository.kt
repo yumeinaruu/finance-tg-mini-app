@@ -27,6 +27,9 @@ class CategoryRepository(private val db: Database) {
         }
     }
 
+    /** Every category including archived ones (operations may still point to them). */
+    fun all(): List<Pair<Category, Boolean>> = CategoryType.entries.flatMap { allWithArchived(it) }
+
     fun findById(id: Long): Category? = db.transaction {
         query("SELECT id, name, emoji, type FROM category WHERE id = ?", id) { it.toCategory() }.firstOrNull()
     }

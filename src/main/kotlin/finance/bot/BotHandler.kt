@@ -14,6 +14,8 @@ import finance.service.RecordResult
 import finance.service.ReportService
 import finance.telegram.CallbackQuery
 import finance.telegram.InlineKeyboardButton
+import finance.telegram.InlineKeyboardMarkup
+import finance.telegram.WebAppInfo
 import finance.telegram.Message
 import finance.telegram.TelegramApi
 import java.time.DayOfWeek
@@ -33,6 +35,7 @@ class BotHandler(
     private val backups: BackupService,
     private val conversation: Conversation,
     private val today: () -> LocalDate,
+    private val miniAppUrl: String? = null,
 ) {
     suspend fun onMessage(message: Message) {
         val text = message.text?.trim().orEmpty()
@@ -89,6 +92,15 @@ class BotHandler(
             "/backup" -> {
                 val backup = backups.create(today)
                 api.sendDocument(chatId, backup.fileName, backup.content, Texts.backupCaption(today, backup.operations))
+            }
+            "/app" -> if (miniAppUrl == null) {
+                api.sendMessage(chatId, "Mini App ещё не настроен")
+            } else {
+                api.sendMessage(
+                    chatId,
+                    "📈 Графики, операции, бюджеты и регулярные платежи:",
+                    InlineKeyboardMarkup(listOf(listOf(InlineKeyboardButton("Открыть", webApp = WebAppInfo(miniAppUrl))))),
+                )
             }
             "/categories" -> categoryFlow.showAll(chatId)
             "/cat" -> categoryFlow.cat(chatId, args)

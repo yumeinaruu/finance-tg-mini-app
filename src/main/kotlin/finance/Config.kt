@@ -13,6 +13,8 @@ data class Config(
     val httpPort: Int,
     /** When recurring payments are added and the monthly summary is sent. */
     val notifyAt: LocalTime,
+    /** Public HTTPS URL of the Mini App; the menu button is set only when it is present. */
+    val miniAppUrl: String?,
 ) {
     val dbUrl: String get() = "jdbc:sqlite:$dbPath"
 
@@ -30,6 +32,7 @@ data class Config(
                 zone = ZoneId.of(env["TIMEZONE"] ?: "Europe/Minsk"),
                 httpPort = env["HTTP_PORT"]?.toIntOrNull() ?: 8080,
                 notifyAt = LocalTime.parse(env["NOTIFY_TIME"] ?: "10:00"),
+                miniAppUrl = env["MINI_APP_URL"]?.takeIf { it.isNotBlank() },
             )
         }
     }

@@ -69,6 +69,11 @@ class TelegramApi(private val http: HttpClient, token: String) {
         call<Boolean, AnswerCallbackQueryRequest>("answerCallbackQuery", AnswerCallbackQueryRequest(id, text))
     }
 
+    /** Puts a Mini App button next to the message input for all chats. */
+    suspend fun setMenuButton(text: String, url: String) {
+        call<Boolean, SetChatMenuButtonRequest>("setChatMenuButton", SetChatMenuButtonRequest(MenuButtonWebApp(text = text, webApp = WebAppInfo(url))))
+    }
+
     suspend fun setMyCommands(commands: List<BotCommand>) {
         call<Boolean, SetMyCommandsRequest>("setMyCommands", SetMyCommandsRequest(commands))
     }

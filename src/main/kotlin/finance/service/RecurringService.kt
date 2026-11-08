@@ -34,6 +34,32 @@ class RecurringService(
 
     fun list(): List<Recurring> = repository.all()
 
+    fun find(id: Long): Recurring? = repository.find(id)
+
+    /**
+     * Updates a payment. A new schedule starts after [today]; resuming a paused payment
+     * skips the dates missed during the pause.
+     */
+    fun update(
+        id: Long,
+        name: String,
+        category: Category,
+        amountMinor: Long,
+        currency: Currency,
+        schedule: Schedule,
+        paused: Boolean,
+        today: LocalDate,
+    ): Recurring? {
+        val current = repository.find(id) ?: return null
+        val nextRun = when {
+            schedule != current.schedule -> schedule.nextAfter(today)
+            current.paused && !paused && current.nextRun.isBefore(today) -> schedule.nextAfter(today)
+            else -> current.nextRun
+        }
+        repository.update(id, name, category.id, amountMinor, currency, schedule, nextRun, paused)
+        return repository.find(id)
+    }
+
     fun delete(id: Long): Boolean = repository.delete(id)
 
     /**

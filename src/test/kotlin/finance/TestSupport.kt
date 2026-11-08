@@ -61,7 +61,7 @@ class FakeTelegram(
         /** All callback_data values of the inline keyboard, row by row. */
         val buttons: List<String>
             get() = body["reply_markup"]?.jsonObject?.getValue("inline_keyboard")?.jsonArray
-                ?.flatMap { row -> row.jsonArray.map { it.jsonObject.getValue("callback_data").jsonPrimitive.content } }
+                ?.flatMap { row -> row.jsonArray.mapNotNull { it.jsonObject["callback_data"]?.jsonPrimitive?.content } }
                 .orEmpty()
     }
 
@@ -116,7 +116,12 @@ class TestApp(
         finance.bot.CategoryFlow(telegram.api, categories, entries, conversation, today),
         finance.bot.BudgetFlow(telegram.api, budgets, categories, today),
         finance.bot.RecurringFlow(telegram.api, recurring, categories, parser, today),
-        backups, conversation, today,
+        backups, conversation, today, miniAppUrl = "https://finance.example/",
+    )
+
+    fun api(validator: finance.api.InitDataValidator) = finance.api.Api(
+        validator, categoryRepository, operations, entries, reports, budgets, recurring,
+        finance.service.ExportService(operations), telegram.api, chatId, today,
     )
 
     val scheduler = finance.bot.Scheduler(

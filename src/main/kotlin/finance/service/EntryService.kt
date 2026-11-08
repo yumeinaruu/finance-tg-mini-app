@@ -68,6 +68,14 @@ class EntryService(
         return operations.find(operationId)
     }
 
+    /** Replaces all fields; the rate is re-fetched only when the currency or the date changes. */
+    suspend fun update(operationId: Long, category: Category, entry: NewOperation): Operation? {
+        val current = operations.find(operationId) ?: return null
+        val rate = if (entry.currency == current.currency && entry.date == current.date) current.rate else rates.rate(entry.currency, entry.date)
+        operations.update(operationId, category.id, entry, rate, Money.toBase(entry.amountMinor, rate))
+        return operations.find(operationId)
+    }
+
     suspend fun save(entry: NewOperation, category: Category, recurringId: Long? = null): Operation {
         val rate = rates.rate(entry.currency, entry.date)
         val id = operations.insert(entry, category.id, rate, Money.toBase(entry.amountMinor, rate), recurringId)
