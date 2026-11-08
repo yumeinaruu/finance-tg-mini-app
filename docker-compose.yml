@@ -1,0 +1,13 @@
+services:
+  finance:
+    image: finance-bot:latest
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 1m
+      timeout: 5s
+      retries: 3
