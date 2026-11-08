@@ -14,3 +14,27 @@ services:
       interval: 1m
       timeout: 5s
       retries: 3
+
+  # HTTPS for the Mini App: static files from ./webapp and /api proxied to the bot.
+  caddy:
+    image: caddy:2.11.8-alpine
+    container_name: finance-caddy
+    restart: unless-stopped
+    depends_on:
+      - finance
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./webapp:/srv/webapp:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 64m
+
+volumes:
+  caddy_data:
+  caddy_config:

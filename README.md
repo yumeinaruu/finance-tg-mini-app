@@ -1,6 +1,6 @@
 # Finance bot
 
-Личный трекер финансов: Telegram-бот на Kotlin + Ktor, SQLite. Спецификация — [docs/spec.md](docs/spec.md).
+Личный трекер финансов: Telegram-бот на Kotlin + Ktor, SQLite, и Mini App на React (`webapp/`). Спецификация — [docs/spec.md](docs/spec.md).
 
 ## Локальный запуск
 
@@ -24,6 +24,8 @@ BOT_TOKEN=... OWNER_ID=... ./gradlew run
 | `TIMEZONE` | `Europe/Minsk` | часовой пояс для «сегодня» и отчётов |
 | `HTTP_PORT` | `8080` | порт для `/health` (позже — API Mini App) |
 | `NOTIFY_TIME` | `10:00` | когда добавляются регулярные платежи и приходит сводка 1-го числа |
+| `DOMAIN` | — | домен Mini App, Caddy выпускает для него сертификат |
+| `MINI_APP_URL` | — | публичный адрес Mini App; если задан, бот ставит кнопку меню и отвечает на `/app` |
 
 ## Деплой
 
@@ -46,6 +48,19 @@ DEPLOY_HOST=vpn ./deploy.sh
 ```
 
 Приложение ограничено 280 МБ (`mem_limit`), JVM с `-Xmx128m`.
+
+## Mini App
+
+Фронтенд в `webapp/` (React + Vite, графики на SVG). Запросы идут в `/api` с заголовком `Authorization: tma <initData>`; сервер проверяет подпись Telegram и пускает только `OWNER_ID`.
+
+Локальная разработка:
+
+```bash
+BOT_TOKEN=000:fake OWNER_ID=42 ./gradlew run          # API на :8080
+cd webapp && VITE_INIT_DATA='<подписанный initData>' npm run dev
+```
+
+На сервере Caddy отдаёт статику из `webapp/` и проксирует `/api` в бота, сертификат Let's Encrypt выпускается сам.
 
 ## Бэкапы
 
