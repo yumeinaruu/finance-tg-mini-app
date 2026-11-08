@@ -6,6 +6,7 @@ import finance.parse.EntryParser
 import finance.parse.ParseResult
 import finance.rates.RateService
 import finance.rates.RateUnavailableException
+import finance.service.BackupService
 import finance.service.BudgetService
 import finance.service.CategoryMatcher
 import finance.service.EntryService
@@ -29,6 +30,7 @@ class BotHandler(
     private val categoryFlow: CategoryFlow,
     private val budgetFlow: BudgetFlow,
     private val recurringFlow: RecurringFlow,
+    private val backups: BackupService,
     private val conversation: Conversation,
     private val today: () -> LocalDate,
 ) {
@@ -83,6 +85,10 @@ class BotHandler(
                 }
                 val all = rates.rates(today)
                 api.sendMessage(chatId, Texts.rates(today, if (filter == null) all else all.filterKeys { it == filter }))
+            }
+            "/backup" -> {
+                val backup = backups.create(today)
+                api.sendDocument(chatId, backup.fileName, backup.content, Texts.backupCaption(today, backup.operations))
             }
             "/categories" -> categoryFlow.showAll(chatId)
             "/cat" -> categoryFlow.cat(chatId, args)

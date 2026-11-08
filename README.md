@@ -47,6 +47,20 @@ DEPLOY_HOST=vpn ./deploy.sh
 
 Приложение ограничено 280 МБ (`mem_limit`), JVM с `-Xmx128m`.
 
+## Бэкапы
+
+Раз в неделю (в `NOTIFY_TIME`) бот присылает в Telegram файл `finance-YYYY-MM-DD.db` — полную копию базы. По запросу — командой `/backup`.
+
+Восстановление на сервере:
+
+```bash
+scp finance-2026-11-15.db vpn:/opt/finance/finance-restore.db
+ssh vpn 'cd /opt/finance && docker compose stop \
+  && rm -f data/finance.db-wal data/finance.db-shm \
+  && mv finance-restore.db data/finance.db \
+  && docker compose start'
+```
+
 ## Тесты
 
 ```bash

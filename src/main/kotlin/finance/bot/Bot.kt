@@ -73,6 +73,7 @@ class Bot(
             BotCommand("recurring", "Регулярные платежи"),
             BotCommand("categories", "Категории"),
             BotCommand("rate", "Курсы валют"),
+            BotCommand("backup", "Копия базы"),
             BotCommand("cancel", "Отменить текущий ввод"),
             BotCommand("help", "Как пользоваться"),
         )

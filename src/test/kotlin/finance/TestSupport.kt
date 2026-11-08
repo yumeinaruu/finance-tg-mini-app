@@ -11,6 +11,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -47,13 +48,14 @@ fun HttpRequestData.bodyText(): String = (body as OutgoingContent.ByteArrayConte
 class FakeTelegram(
     private val responder: (method: String) -> String = { method ->
         when (method) {
-            "sendMessage" -> """{"ok":true,"result":{"message_id":1,"chat":{"id":42}}}"""
+            "sendMessage", "sendDocument" -> """{"ok":true,"result":{"message_id":1,"chat":{"id":42}}}"""
             "getUpdates" -> """{"ok":true,"result":[]}"""
             else -> """{"ok":true,"result":true}"""
         }
     },
 ) {
-    data class Call(val method: String, val body: JsonObject) {
+    /** [body] is the JSON payload; multipart uploads have an empty [body] and the raw payload in [raw]. */
+    data class Call(val method: String, val body: JsonObject, val raw: String = "") {
         val text: String get() = body.getValue("text").jsonPrimitive.content
 
         /** All callback_data values of the inline keyboard, row by row. */
@@ -67,7 +69,9 @@ class FakeTelegram(
 
     val engine = MockEngine { request ->
         val method = request.url.encodedPath.substringAfterLast('/')
-        calls += Call(method, Json.parseToJsonElement(request.bodyText()).jsonObject)
+        val raw = request.body.toByteArray().decodeToString()
+        val multipart = request.body.contentType?.contentType == "multipart"
+        calls += Call(method, if (multipart) JsonObject(emptyMap()) else Json.parseToJsonElement(raw).jsonObject, raw)
         respondJson(responder(method))
     }
 
@@ -104,6 +108,7 @@ class TestApp(
     val recurring = finance.service.RecurringService(recurringRepository, entries)
     val reports = finance.service.ReportService(operations)
     val conversation = finance.bot.Conversation()
+    val backups = finance.service.BackupService(db)
     private val parser = finance.parse.EntryParser()
 
     val handler = finance.bot.BotHandler(
@@ -111,11 +116,11 @@ class TestApp(
         finance.bot.CategoryFlow(telegram.api, categories, entries, conversation, today),
         finance.bot.BudgetFlow(telegram.api, budgets, categories, today),
         finance.bot.RecurringFlow(telegram.api, recurring, categories, parser, today),
-        conversation, today,
+        backups, conversation, today,
     )
 
     val scheduler = finance.bot.Scheduler(
-        telegram.api, chatId, recurring, budgets, reports, finance.repo.StateRepository(db), java.time.LocalTime.of(10, 0),
+        telegram.api, chatId, recurring, budgets, reports, finance.repo.StateRepository(db), backups, java.time.LocalTime.of(10, 0),
     ) { now }
 
     /** Sends a text message and returns the bot's reply. */

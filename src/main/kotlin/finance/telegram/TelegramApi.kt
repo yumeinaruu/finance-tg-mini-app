@@ -5,7 +5,11 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import kotlinx.serialization.json.JsonElement
 
@@ -37,6 +41,29 @@ class TelegramApi(private val http: HttpClient, token: String) {
                 EditMessageReplyMarkupRequest(chatId, messageId, markup),
             )
         }
+
+    /** Sends a file as a document (multipart upload). */
+    suspend fun sendDocument(chatId: Long, fileName: String, content: ByteArray, caption: String? = null) {
+        val response: TgResponse<JsonElement> = http.post("$baseUrl/sendDocument") {
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append("chat_id", chatId.toString())
+                        caption?.let { append("caption", it) }
+                        append(
+                            "document",
+                            content,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, "application/octet-stream")
+                                append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                            },
+                        )
+                    },
+                ),
+            )
+        }.body()
+        if (!response.ok) throw TelegramException("sendDocument", response.description)
+    }
 
     suspend fun answerCallbackQuery(id: String, text: String? = null) {
         call<Boolean, AnswerCallbackQueryRequest>("answerCallbackQuery", AnswerCallbackQueryRequest(id, text))

@@ -35,5 +35,14 @@ class Database(url: String) : AutoCloseable {
         }
     }
 
+    /** Writes a consistent copy of the database to [target] (works with WAL, outside a transaction). */
+    fun backupTo(target: java.nio.file.Path) = lock.withLock {
+        check(connection.autoCommit) { "Backup cannot run inside a transaction" }
+        connection.prepareStatement("VACUUM INTO ?").use { statement ->
+            statement.setString(1, target.toString())
+            statement.execute()
+        }
+    }
+
     override fun close() = connection.close()
 }

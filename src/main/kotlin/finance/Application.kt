@@ -20,6 +20,7 @@ import finance.repo.PendingRepository
 import finance.repo.RateRepository
 import finance.repo.RecurringRepository
 import finance.repo.StateRepository
+import finance.service.BackupService
 import finance.service.BudgetService
 import finance.service.CategoryService
 import finance.service.EntryService
@@ -67,14 +68,15 @@ fun main() {
     val api = TelegramApi(http, config.botToken)
     val parser = EntryParser()
     val conversation = Conversation()
+    val backups = BackupService(db)
     val handler = BotHandler(
         api, parser, entries, reports, rates, budgets,
         CategoryFlow(api, categories, entries, conversation, today),
         BudgetFlow(api, budgets, categories, today),
         RecurringFlow(api, recurring, categories, parser, today),
-        conversation, today,
+        backups, conversation, today,
     )
-    val scheduler = Scheduler(api, config.ownerId, recurring, budgets, reports, StateRepository(db), config.notifyAt) {
+    val scheduler = Scheduler(api, config.ownerId, recurring, budgets, reports, StateRepository(db), backups, config.notifyAt) {
         LocalDateTime.now(config.zone)
     }
 

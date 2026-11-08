@@ -48,6 +48,7 @@ object Texts {
         /recurring — регулярные платежи
         /categories — категории и слова для них
         /rate — курсы валют
+        /backup — копия базы (присылаю и сама раз в неделю)
         /cancel — отменить текущий ввод
     """.trimIndent()
 
@@ -292,6 +293,9 @@ object Texts {
         val date = if (op.date == today) "" else " · 📅 ${date(op.date, today)}"
         return "🔁 Добавил: ${op.note} — ${amount(op)}, ${op.category.label}$date"
     }
+
+    fun backupCaption(today: LocalDate, operations: Int) =
+        "💾 Бэкап базы на ${today.format(FULL_DATE)} · $operations ${plural(operations, "операция", "операции", "операций")}"
 
     private const val MAX_ALIASES_SHOWN = 8
 }

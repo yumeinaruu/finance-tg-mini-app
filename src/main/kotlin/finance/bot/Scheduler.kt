@@ -1,5 +1,6 @@
 package finance.bot
 
+import finance.service.BackupService
 import finance.service.BudgetService
 import finance.service.RecurringService
 import finance.service.ReportService
@@ -10,6 +11,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.slf4j.LoggerFactory
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.YearMonth
@@ -22,6 +24,7 @@ class Scheduler(
     private val budgets: BudgetService,
     private val reports: ReportService,
     private val state: StateRepository,
+    private val backups: BackupService,
     private val notifyAt: LocalTime,
     private val now: () -> LocalDateTime,
 ) {
@@ -43,6 +46,19 @@ class Scheduler(
     suspend fun tick() {
         addRecurring()
         sendMonthlySummary()
+        sendWeeklyBackup()
+    }
+
+    /** Sends a database copy when the last one is a week old (or was never sent). */
+    private suspend fun sendWeeklyBackup() {
+        val now = now()
+        val today = now.toLocalDate()
+        if (now.toLocalTime().isBefore(notifyAt)) return
+        val last = state.get(BACKUP_KEY)?.let(LocalDate::parse)
+        if (last != null && last.plusDays(BACKUP_EVERY_DAYS).isAfter(today)) return
+        val backup = backups.create(today)
+        api.sendDocument(ownerId, backup.fileName, backup.content, Texts.backupCaption(today, backup.operations))
+        state.set(BACKUP_KEY, today.toString())
     }
 
     private suspend fun addRecurring() {
@@ -79,5 +95,7 @@ class Scheduler(
     private companion object {
         const val TICK_MS = 60_000L
         const val SUMMARY_KEY = "monthly_summary_sent"
+        const val BACKUP_KEY = "backup_sent"
+        const val BACKUP_EVERY_DAYS = 7L
     }
 }
