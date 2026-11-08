@@ -27,25 +27,25 @@ BOT_TOKEN=... OWNER_ID=... ./gradlew run
 
 ## Деплой
 
-Сборка идёт локально, на сервер уходит готовый Docker-образ (Gradle не влезет в память VPS).
+Jar собирается локально (Gradle не влезет в память VPS), на сервере из него собирается тонкий образ. Docker локально не нужен.
 
 Один раз на сервере:
 
 ```bash
-mkdir -p ~/finance && cd ~/finance
+mkdir -p /opt/finance && cd /opt/finance
 cat > .env <<'EOF'
 BOT_TOKEN=...
 OWNER_ID=...
 EOF
 ```
 
-Каждый деплой с локальной машины (нужен запущенный Docker):
+Каждый деплой с локальной машины:
 
 ```bash
-DEPLOY_HOST=user@server ./deploy.sh
+DEPLOY_HOST=vpn ./deploy.sh
 ```
 
-Приложение ограничено 320 МБ (`mem_limit`), JVM с `-Xmx160m`.
+Приложение ограничено 280 МБ (`mem_limit`), JVM с `-Xmx128m`.
 
 ## Тесты
 
