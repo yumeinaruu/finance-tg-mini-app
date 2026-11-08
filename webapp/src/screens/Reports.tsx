@@ -1,24 +1,29 @@
+import { Send } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
 import { LineChart } from '../components/Charts'
-import { ErrorBox, Field, Loader, Section } from '../components/Common'
+import { ErrorBox, Field, Loader, ScreenTitle, Section } from '../components/Common'
 import { useToast } from '../components/Toast'
 import { money, monthRange, monthShort, monthTitle } from '../format'
 import { haptic } from '../telegram'
-import type { MonthReport } from '../types'
+import { CategoryIcon } from '../icons'
+import type { Meta, MonthReport } from '../types'
 import { useAsync } from '../useAsync'
 
-export function ReportsScreen({ categories, base, today }: { categories: Categories; base: string; today: string }) {
+export function ReportsScreen({ categories, meta }: { categories: Categories; meta: Meta }) {
   const { data, error, loading, reload } = useAsync(() => api.monthly(12), [])
+  const base = meta.baseCurrency
+  const today = meta.today
 
   return (
     <div className="screen">
+      <ScreenTitle>Отчёты</ScreenTitle>
       {loading && !data && <Loader />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && (
         <>
-          <Section title={`Доходы и расходы за 12 месяцев, ${base}`}>
+          <Section title={`Доходы и расходы за год, ${base}`}>
             <LineChart
               labels={data.map((m) => monthShort(m.month))}
               series={[
@@ -40,6 +45,19 @@ export function ReportsScreen({ categories, base, today }: { categories: Categor
         </>
       )}
       <Export today={today} />
+      <Section title="Настройки">
+        <dl className="settings">
+          <div>
+            <dt>Основная валюта</dt>
+            <dd>{base}</dd>
+          </div>
+          <div>
+            <dt>Валюты</dt>
+            <dd>{meta.currencies.join(', ')}</dd>
+          </div>
+        </dl>
+        <p className="hint">Категории и слова для них настраиваются в чате с ботом: /categories, /cat, /alias.</p>
+      </Section>
     </div>
   )
 }
@@ -89,7 +107,7 @@ function Compare({ categories, months }: { categories: Categories; months: Month
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td>{categories.label(r.id)}</td>
+                <td>{categories.name(r.id)}</td>
                 <td>{money(r.a)}</td>
                 <td>{money(r.b)}</td>
                 <Diff value={r.b - r.a} />
@@ -124,13 +142,17 @@ function Averages({ categories, months }: { categories: Categories; months: Mont
   active.forEach((m) => m.expenseByCategory.forEach((t) => totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.total)))
   const rows = [...totals.entries()].map(([id, total]) => ({ id, avg: Math.round(total / active.length) })).sort((x, y) => y.avg - x.avg)
   return (
-    <Section title={`Средние траты в месяц (за ${active.length} мес.)`}>
-      <ul className="list">
+    <Section title={`В среднем за месяц, по ${active.length} мес.`} flush>
+      <ul className="list list--compact">
         {rows.map((r) => (
           <li key={r.id} className="row">
-            <span className="dot" style={{ background: categories.color(r.id) }} />
-            <span className="row__main">{categories.label(r.id)}</span>
-            <span className="row__amount">{money(r.avg)}</span>
+            <CategoryIcon categories={categories} id={r.id} size="sm" />
+            <span className="row__main">
+              <span className="row__line">
+                <span className="row__title">{categories.name(r.id)}</span>
+                <span className="row__amount">{money(r.avg)}</span>
+              </span>
+            </span>
           </li>
         ))}
       </ul>
@@ -150,7 +172,7 @@ function Export({ today }: { today: string }) {
     try {
       await api.exportCsv(from, to)
       haptic('success')
-      toast('CSV отправлен в чат с ботом')
+      toast('Файл отправлен в чат с ботом')
     } catch (e) {
       toast((e as Error).message, 'error')
     } finally {
@@ -159,7 +181,7 @@ function Export({ today }: { today: string }) {
   }
 
   return (
-    <Section title="Экспорт в CSV">
+    <Section title="Выгрузка в CSV">
       <div className="form-row">
         <Field label="С">
           <input className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
@@ -168,8 +190,8 @@ function Export({ today }: { today: string }) {
           <input className="input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
         </Field>
       </div>
-      <button className="button button--secondary" disabled={busy || !from || !to} onClick={send}>
-        Отправить файл в чат
+      <button className="button button--secondary button--icon" disabled={busy || !from || !to} onClick={send}>
+        <Send size={17} /> Отправить файл в чат
       </button>
     </Section>
   )

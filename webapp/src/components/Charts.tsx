@@ -1,4 +1,5 @@
-import { compact, money } from '../format'
+import { useEffect, useState, type ReactNode } from 'react'
+import { money } from '../format'
 
 export interface Slice {
   id: number
@@ -6,83 +7,97 @@ export interface Slice {
   color: string
 }
 
-/** Donut chart; tapping a segment calls [onSelect]. */
-export function Donut({ slices, total, onSelect }: { slices: Slice[]; total: number; onSelect?: (id: number) => void }) {
-  const radius = 42
-  const circumference = 2 * Math.PI * radius
+const RING_RADIUS = 80
+const RING_WIDTH = 20
+const RING_GAP = 3
+
+/**
+ * Category ring. A single category closes the full circle; several get small gaps between them.
+ * Segments draw in once on mount (skipped with reduced motion via CSS).
+ */
+export function Ring({ slices, total, onSelect, children }: { slices: Slice[]; total: number; onSelect?: (id: number) => void; children?: ReactNode }) {
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDrawn(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
+  const circumference = 2 * Math.PI * RING_RADIUS
+  const visible = slices.filter((s) => s.value > 0)
+  const gap = visible.length > 1 ? RING_GAP : 0
   let offset = 0
+
   return (
-    <svg className="donut" viewBox="0 0 120 120" role="img" aria-label="Расходы по категориям">
-      <circle cx="60" cy="60" r={radius} className="donut__track" />
-      {slices.map((slice) => {
-        const length = total > 0 ? (slice.value / total) * circumference : 0
-        const dash = `${Math.max(length - 1.5, 0.5)} ${circumference}`
-        const element = (
-          <circle
-            key={slice.id}
-            cx="60"
-            cy="60"
-            r={radius}
-            fill="none"
-            stroke={slice.color}
-            strokeWidth="16"
-            strokeDasharray={dash}
-            strokeDashoffset={-offset}
-            transform="rotate(-90 60 60)"
-            onClick={() => onSelect?.(slice.id)}
-            style={{ cursor: onSelect ? 'pointer' : undefined }}
-          />
-        )
-        offset += length
-        return element
-      })}
-      <text x="60" y="57" className="donut__label">
-        расходы
-      </text>
-      <text x="60" y="73" className="donut__value">
-        {compact(total)}
-      </text>
-    </svg>
+    <div className="ring">
+      <svg viewBox="0 0 200 200" role="img" aria-label="Расходы по категориям">
+        <circle cx="100" cy="100" r={RING_RADIUS} className="ring__track" strokeWidth={RING_WIDTH} />
+        {total > 0 &&
+          visible.map((slice) => {
+            const share = (slice.value / total) * circumference
+            const length = Math.max(share - gap, 0.8)
+            const element = (
+              <circle
+                key={slice.id}
+                cx="100"
+                cy="100"
+                r={RING_RADIUS}
+                fill="none"
+                stroke={slice.color}
+                strokeWidth={RING_WIDTH}
+                strokeDasharray={drawn ? `${length} ${circumference}` : `0 ${circumference}`}
+                strokeDashoffset={-(offset + gap / 2)}
+                transform="rotate(-90 100 100)"
+                className="ring__segment"
+                onClick={() => onSelect?.(slice.id)}
+              />
+            )
+            offset += share
+            return element
+          })}
+      </svg>
+      <div className="ring__center">{children}</div>
+    </div>
   )
 }
 
-/** Daily expense bars for one month; [values] has one entry per day. */
-export function DayBars({ values, highlight }: { values: number[]; highlight?: number }) {
+/** Daily expense bars for one month with a dashed daily-average line. */
+export function DayBars({ values, today }: { values: number[]; today?: number }) {
+  const width = 320
+  const height = 96
+  const gap = 3
   const max = Math.max(...values, 1)
-  const width = 300
-  const height = 90
-  const gap = 2
+  const daysCounted = today ?? values.length
+  const average = values.slice(0, daysCounted).reduce((s, v) => s + v, 0) / Math.max(daysCounted, 1)
   const barWidth = (width - gap * (values.length - 1)) / values.length
+  const y = (v: number) => height - (v / max) * height
   return (
-    <svg className="bars" viewBox={`0 0 ${width} ${height + 14}`} preserveAspectRatio="none" role="img" aria-label="Расходы по дням">
-      {values.map((value, i) => {
-        const h = value > 0 ? Math.max((value / max) * height, 2) : 0
-        return (
-          <rect
-            key={i}
-            x={i * (barWidth + gap)}
-            y={height - h}
-            width={barWidth}
-            height={h}
-            rx="1.5"
-            className={i + 1 === highlight ? 'bars__bar bars__bar--today' : 'bars__bar'}
+    <div className="day-bars">
+      <svg viewBox={`0 0 ${width} ${height + 16}`} preserveAspectRatio="none" role="img" aria-label="Расходы по дням">
+        {values.map((value, i) => {
+          const h = value > 0 ? Math.max(height - y(value), 3) : 0
+          const day = i + 1
+          const state = day === today ? 'today' : today !== undefined && day > today ? 'future' : 'past'
+          return (
+            <rect key={i} x={i * (barWidth + gap)} y={height - h} width={barWidth} height={h} rx={Math.min(barWidth / 2, 3)} className={`day-bars__bar day-bars__bar--${state}`}>
+              <title>{`${day}: ${money(value)}`}</title>
+            </rect>
+          )
+        })}
+        {average > 0 && <line x1="0" x2={width} y1={y(average)} y2={y(average)} className="day-bars__avg" />}
+        {[1, 10, 20, values.length].map((day) => (
+          <text
+            key={day}
+            x={day === 1 ? 0 : day === values.length ? width : (day - 1) * (barWidth + gap) + barWidth / 2}
+            y={height + 13}
+            className="chart-axis"
+            textAnchor={day === 1 ? 'start' : day === values.length ? 'end' : 'middle'}
           >
-            <title>{`${i + 1}: ${money(value)}`}</title>
-          </rect>
-        )
-      })}
-      {[1, 10, 20, values.length].map((day) => (
-        <text
-          key={day}
-          x={day === 1 ? 0 : day === values.length ? width : (day - 1) * (barWidth + gap) + barWidth / 2}
-          y={height + 12}
-          className="chart-axis"
-          textAnchor={day === 1 ? 'start' : day === values.length ? 'end' : 'middle'}
-        >
-          {day}
-        </text>
-      ))}
-    </svg>
+            {day}
+          </text>
+        ))}
+      </svg>
+      {average > 0 && <div className="day-bars__caption">В среднем {money(Math.round(average))} в день</div>}
+    </div>
   )
 }
 
@@ -92,39 +107,42 @@ export interface Series {
   values: number[]
 }
 
-/** Line chart with month labels under the points. */
+/** Income and expense lines by month, with a soft area under each line. */
 export function LineChart({ series, labels }: { series: Series[]; labels: string[] }) {
   const width = 320
-  const height = 140
-  const pad = { top: 10, right: 8, bottom: 20, left: 8 }
+  const height = 150
+  const pad = { top: 12, right: 10, bottom: 22, left: 10 }
   const max = Math.max(...series.flatMap((s) => s.values), 1)
   const step = labels.length > 1 ? (width - pad.left - pad.right) / (labels.length - 1) : 0
   const x = (i: number) => pad.left + i * step
   const y = (v: number) => pad.top + (1 - v / max) * (height - pad.top - pad.bottom)
+  const bottom = height - pad.bottom
   return (
     <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Доходы и расходы по месяцам">
-      {[0.25, 0.5, 0.75, 1].map((f) => (
+      <defs>
+        {series.map((s, i) => (
+          <linearGradient key={s.name} id={`area-${i}`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+          </linearGradient>
+        ))}
+      </defs>
+      {[0.5, 1].map((f) => (
         <line key={f} x1={pad.left} x2={width - pad.right} y1={y(max * f)} y2={y(max * f)} className="chart-grid" />
       ))}
-      {series.map((s) => (
-        <g key={s.name}>
-          <polyline
-            fill="none"
-            stroke={s.color}
-            strokeWidth="2.5"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
-          />
-          {s.values.map((v, i) => (
-            <circle key={i} cx={x(i)} cy={y(v)} r="2.5" fill={s.color}>
-              <title>{`${labels[i]}: ${money(v)}`}</title>
-            </circle>
-          ))}
-        </g>
-      ))}
+      <line x1={pad.left} x2={width - pad.right} y1={bottom} y2={bottom} className="chart-grid" />
+      {series.map((s, i) => {
+        const points = s.values.map((v, j) => `${x(j)},${y(v)}`).join(' ')
+        return (
+          <g key={s.name}>
+            <polygon points={`${x(0)},${bottom} ${points} ${x(s.values.length - 1)},${bottom}`} fill={`url(#area-${i})`} />
+            <polyline fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" points={points} />
+            <circle cx={x(s.values.length - 1)} cy={y(s.values[s.values.length - 1])} r="3.5" fill={s.color} />
+          </g>
+        )
+      })}
       {labels.map((label, i) => (
-        <text key={label + i} x={x(i)} y={height - 4} className="chart-axis">
+        <text key={label + i} x={x(i)} y={height - 5} className="chart-axis" textAnchor="middle">
           {label}
         </text>
       ))}
@@ -132,13 +150,22 @@ export function LineChart({ series, labels }: { series: Series[]; labels: string
   )
 }
 
-/** Budget progress: green below 80%, amber up to 100%, red above. */
+/** Budget progress: calm below 80%, amber up to 100%, red above. */
 export function Progress({ value, limit }: { value: number; limit: number }) {
   const ratio = limit > 0 ? value / limit : 0
   const state = ratio >= 1 ? 'over' : ratio >= 0.8 ? 'warn' : 'ok'
   return (
-    <div className="progress">
+    <div className="progress" role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100}>
       <div className={`progress__fill progress__fill--${state}`} style={{ width: `${Math.min(ratio, 1) * 100}%` }} />
+    </div>
+  )
+}
+
+/** Thin share bar under a category row. */
+export function ShareBar({ share, color }: { share: number; color: string }) {
+  return (
+    <div className="share-bar">
+      <div style={{ width: `${Math.max(share * 100, 1.5)}%`, background: color }} />
     </div>
   )
 }

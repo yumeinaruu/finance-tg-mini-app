@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChartColumn, ChartPie, ReceiptText, Repeat, Target, type LucideIcon } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { Categories } from './categories'
 import { ErrorBox, Loader } from './components/Common'
-import { Sheet } from './components/Sheet'
 import { BudgetsScreen } from './screens/Budgets'
 import { OperationsScreen } from './screens/Operations'
 import { OverviewScreen } from './screens/Overview'
@@ -14,12 +14,12 @@ import { useAsync } from './useAsync'
 
 type Tab = 'overview' | 'operations' | 'budgets' | 'recurring' | 'reports'
 
-const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'overview', icon: '📊', label: 'Обзор' },
-  { id: 'operations', icon: '🧾', label: 'Операции' },
-  { id: 'budgets', icon: '🎯', label: 'Бюджеты' },
-  { id: 'recurring', icon: '🔁', label: 'Регулярные' },
-  { id: 'reports', icon: '📈', label: 'Отчёты' },
+const TABS: { id: Tab; icon: LucideIcon; label: string }[] = [
+  { id: 'overview', icon: ChartPie, label: 'Обзор' },
+  { id: 'operations', icon: ReceiptText, label: 'Операции' },
+  { id: 'budgets', icon: Target, label: 'Бюджеты' },
+  { id: 'recurring', icon: Repeat, label: 'Регулярные' },
+  { id: 'reports', icon: ChartColumn, label: 'Отчёты' },
 ]
 
 export function App() {
@@ -34,7 +34,7 @@ export function App() {
   if (error || !meta) {
     return (
       <ErrorBox
-        message={error === 'Нет доступа' ? 'Открой приложение через кнопку в чате с ботом' : (error ?? 'Ошибка')}
+        message={error === 'Нет доступа' ? 'Открой приложение кнопкой «Финансы» в чате с ботом' : (error ?? 'Не удалось загрузить данные')}
         onRetry={error === 'Нет доступа' ? undefined : reload}
       />
     )
@@ -47,8 +47,6 @@ function Main({ meta }: { meta: Meta }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [month, setMonth] = useState(meta.today.slice(0, 7))
   const [categoryFilter, setCategoryFilter] = useState<number | undefined>(undefined)
-  const [settings, setSettings] = useState(false)
-  const closeSettings = useCallback(() => setSettings(false), [])
 
   const switchTab = (next: Tab) => {
     if (next !== 'operations') setCategoryFilter(undefined)
@@ -58,13 +56,6 @@ function Main({ meta }: { meta: Meta }) {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <span className="topbar__title">{TABS.find((t) => t.id === tab)?.label}</span>
-        <button className="icon-button" aria-label="Настройки" onClick={() => setSettings(true)}>
-          ⚙︎
-        </button>
-      </header>
-
       <main>
         {tab === 'overview' && (
           <OverviewScreen
@@ -76,6 +67,7 @@ function Main({ meta }: { meta: Meta }) {
             onOpenCategory={(id) => {
               setCategoryFilter(id)
               setTab('operations')
+              window.scrollTo(0, 0)
             }}
             onOpenBudgets={() => switchTab('budgets')}
           />
@@ -92,43 +84,17 @@ function Main({ meta }: { meta: Meta }) {
         )}
         {tab === 'budgets' && <BudgetsScreen categories={categories} base={meta.baseCurrency} today={meta.today} month={month} onMonthChange={setMonth} />}
         {tab === 'recurring' && <RecurringScreen meta={meta} categories={categories} />}
-        {tab === 'reports' && <ReportsScreen categories={categories} base={meta.baseCurrency} today={meta.today} />}
+        {tab === 'reports' && <ReportsScreen categories={categories} meta={meta} />}
       </main>
 
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <button key={t.id} className={t.id === tab ? 'tabbar__item active' : 'tabbar__item'} onClick={() => switchTab(t.id)}>
-            <span className="tabbar__icon">{t.icon}</span>
-            <span>{t.label}</span>
+      <nav className="tabbar" aria-label="Разделы">
+        {TABS.map(({ id, icon: Icon, label }) => (
+          <button key={id} className={id === tab ? 'tabbar__item active' : 'tabbar__item'} aria-current={id === tab ? 'page' : undefined} onClick={() => switchTab(id)}>
+            <Icon size={22} strokeWidth={id === tab ? 2.3 : 1.9} />
+            <span>{label}</span>
           </button>
         ))}
       </nav>
-
-      {settings && (
-        <Sheet title="Настройки" onClose={closeSettings}>
-          <div className="row">
-            <span className="row__main">Базовая валюта</span>
-            <span className="row__amount">{meta.baseCurrency}</span>
-          </div>
-          <div className="row">
-            <span className="row__main">Валюты</span>
-            <span className="row__hint">{meta.currencies.join(', ')}</span>
-          </div>
-          <div className="settings-categories">
-            <div className="field__label">Категории</div>
-            <div className="chips">
-              {categories.active().map((c) => (
-                <span key={c.id} className="chip chip--static">
-                  {c.emoji} {c.name}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="hint">
-            Добавлять, переименовывать и удалять категории и слова для них — в боте: /categories, /cat, /alias. Время уведомлений задаётся на сервере (NOTIFY_TIME).
-          </div>
-        </Sheet>
-      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { Repeat } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
@@ -17,7 +18,7 @@ interface Props {
   onSaved: () => void
 }
 
-/** Create or edit an operation. */
+/** Create or edit an operation: amount first, then category, then the details. */
 export function OperationForm({ meta, categories, operation, defaultDate, onClose, onSaved }: Props) {
   const toast = useToast()
   const [type, setType] = useState<CategoryType>(operation?.type ?? 'EXPENSE')
@@ -46,7 +47,7 @@ export function OperationForm({ meta, categories, operation, defaultDate, onClos
       if (operation) await api.updateOperation(operation.id, input)
       else await api.createOperation(input)
       haptic('success')
-      toast(operation ? 'Сохранено' : 'Добавлено')
+      toast(operation ? 'Изменения сохранены' : 'Операция добавлена')
       onSaved()
     } catch (e) {
       haptic('error')
@@ -62,7 +63,7 @@ export function OperationForm({ meta, categories, operation, defaultDate, onClos
     try {
       await api.deleteOperation(operation.id)
       haptic('success')
-      toast('Удалено')
+      toast('Операция удалена')
       onSaved()
     } catch (e) {
       setError((e as Error).message)
@@ -80,44 +81,56 @@ export function OperationForm({ meta, categories, operation, defaultDate, onClos
           { value: 'INCOME', label: 'Доход' },
         ]}
       />
-      <div className="form-row">
-        <Field label="Сумма">
-          <input className="input input--amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus={!operation} />
-        </Field>
-        <Field label="Валюта">
-          <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {meta.currencies.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
+      <div className={type === 'INCOME' ? 'amount-field amount-field--income' : 'amount-field'}>
+        <input
+          className="amount-field__input"
+          inputMode="decimal"
+          placeholder="0"
+          aria-label="Сумма"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus={!operation}
+        />
+        <select className="amount-field__currency" aria-label="Валюта" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          {meta.currencies.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
       </div>
       {operation && operation.currency !== meta.baseCurrency && operation.currency === currency && (
-        <div className="hint">
-          ≈ {money(operation.amountBase)} {meta.baseCurrency} по курсу {Number(operation.rate).toFixed(4)}
-        </div>
+        <p className="hint hint--center">
+          {money(operation.amountBase)} {meta.baseCurrency} по курсу {Number(operation.rate).toFixed(4)}
+        </p>
       )}
-      <Field label="Категория">
-        <CategoryPicker categories={categories} type={type} value={categoryId} onChange={setCategoryId} />
-      </Field>
+      <CategoryPicker categories={categories} type={type} value={categoryId} onChange={setCategoryId} />
       <div className="form-row">
         <Field label="Дата">
           <input className="input" type="date" value={date} max={meta.today} onChange={(e) => setDate(e.target.value)} />
         </Field>
       </div>
       <Field label="Заметка">
-        <input className="input" placeholder="кофе, такси до дома…" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input className="input" placeholder="Например, кофе с собой" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
-      {operation?.recurringId && <div className="hint">🔁 Добавлено регулярным платежом</div>}
-      {error && <div className="form-error">{error}</div>}
-      <button className="button" disabled={busy} onClick={save}>
-        {operation ? 'Сохранить' : 'Добавить'}
-      </button>
-      {operation && (
-        <button className="button button--destructive" disabled={busy} onClick={remove}>
-          Удалить
-        </button>
+      {operation?.recurringId && (
+        <p className="hint hint--icon">
+          <Repeat size={14} /> Добавлена регулярным платежом
+        </p>
       )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="sheet__actions">
+        <button className="button" disabled={busy} onClick={save}>
+          {operation ? 'Сохранить' : 'Добавить'}
+        </button>
+        {operation && (
+          <button className="button button--destructive" disabled={busy} onClick={remove}>
+            Удалить операцию
+          </button>
+        )}
+      </div>
     </Sheet>
   )
 }

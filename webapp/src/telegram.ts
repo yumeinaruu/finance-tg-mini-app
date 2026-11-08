@@ -11,6 +11,10 @@ interface TelegramWebApp {
     selectionChanged(): void
   }
   isVersionAtLeast?(version: string): boolean
+  onEvent?(event: 'themeChanged', callback: () => void): void
+  setHeaderColor?(color: string): void
+  setBackgroundColor?(color: string): void
+  setBottomBarColor?(color: string): void
 }
 
 declare global {
@@ -35,4 +39,19 @@ export function haptic(type: 'success' | 'error' | 'select') {
   if (!feedback) return
   if (type === 'select') feedback.selectionChanged()
   else feedback.notificationOccurred(type)
+}
+
+/** Mirrors the Telegram color scheme on <html data-theme> and blends Telegram's header into the app background. */
+export function syncTheme() {
+  if (!tg) return
+  const apply = () => {
+    document.documentElement.dataset.theme = tg!.colorScheme
+  }
+  apply()
+  tg.onEvent?.('themeChanged', apply)
+  if (tg.isVersionAtLeast?.('6.1')) {
+    tg.setHeaderColor?.('secondary_bg_color')
+    tg.setBackgroundColor?.('secondary_bg_color')
+  }
+  if (tg.isVersionAtLeast?.('7.10')) tg.setBottomBarColor?.('secondary_bg_color')
 }

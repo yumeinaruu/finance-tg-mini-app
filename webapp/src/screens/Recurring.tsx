@@ -1,12 +1,14 @@
+import { Pause, Plus, Repeat } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
-import { CategoryPicker, Empty, ErrorBox, Field, Loader, Section, Segmented } from '../components/Common'
+import { CategoryPicker, Empty, ErrorBox, Field, Loader, ScreenTitle, Section, Segmented } from '../components/Common'
 import { Sheet } from '../components/Sheet'
 import { useToast } from '../components/Toast'
 import { MONTHS, WEEKDAYS, amountInput, money, parseAmount, shortDate } from '../format'
 import { confirmAction, haptic } from '../telegram'
 import type { CategoryType, Meta, Recurring, ScheduleKind } from '../types'
+import { CategoryIcon } from '../icons'
 import { useAsync } from '../useAsync'
 
 export function RecurringScreen({ meta, categories }: { meta: Meta; categories: Categories }) {
@@ -19,46 +21,64 @@ export function RecurringScreen({ meta, categories }: { meta: Meta; categories: 
 
   return (
     <div className="screen">
+      <ScreenTitle>Регулярные платежи</ScreenTitle>
       {loading && !data && <Loader />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && data.length === 0 && (
-        <Empty icon="🔁">
-          Регулярных платежей нет.
-          <br />
-          Бот сам добавит их в нужный день и пришлёт уведомление.
+        <Empty icon={Repeat} title="Регулярных платежей нет">
+          <p className="empty__text">Бот сам добавит их в нужный день и пришлёт уведомление.</p>
+          <button className="button button--inline" onClick={() => setEditing('new')}>
+            Добавить платёж
+          </button>
         </Empty>
       )}
       {data && data.length > 0 && (
         <>
           {monthlyTotal > 0 && (
-            <div className="hint hint--center">
-              Ежемесячные расходы в {meta.baseCurrency}: {money(monthlyTotal)}
-            </div>
+            <section className="summary">
+              <div className="summary__line">
+                <span className="summary__amount">{money(monthlyTotal)}</span>
+                <span className="summary__caption">{meta.baseCurrency} уходит каждый месяц</span>
+              </div>
+            </section>
           )}
-          <Section>
+          <Section flush>
             <ul className="list">
               {data.map((r) => (
-                <li key={r.id} className={r.paused ? 'row row--tappable row--muted' : 'row row--tappable'} onClick={() => setEditing(r)}>
-                  <span className="row__emoji">{categories.get(r.categoryId).emoji}</span>
-                  <span className="row__main">
-                    <span>{r.name}</span>
-                    <span className="row__sub">{r.description}</span>
-                  </span>
-                  <span className="row__right">
-                    <span className={categories.get(r.categoryId).type === 'INCOME' ? 'row__amount amount--income' : 'row__amount'}>
-                      {money(r.amount)} {r.currency}
+                <li key={r.id}>
+                  <button className={r.paused ? 'row row--button row--muted' : 'row row--button'} onClick={() => setEditing(r)}>
+                    <CategoryIcon categories={categories} id={r.categoryId} />
+                    <span className="row__main">
+                      <span className="row__line">
+                        <span className="row__title">{r.name}</span>
+                        <span className={categories.get(r.categoryId).type === 'INCOME' ? 'row__amount amount--income' : 'row__amount'}>
+                          {money(r.amount)}
+                          <span className="row__currency"> {r.currency}</span>
+                        </span>
+                      </span>
+                      <span className="row__line">
+                        <span className="row__meta">{r.description}</span>
+                        {r.paused ? (
+                          <span className="pill">
+                            <Pause size={11} /> пауза
+                          </span>
+                        ) : (
+                          <span className="row__meta">{shortDate(r.nextRun, meta.today)}</span>
+                        )}
+                      </span>
                     </span>
-                    <span className="row__sub">{r.paused ? '⏸ на паузе' : shortDate(r.nextRun, meta.today)}</span>
-                  </span>
+                  </button>
                 </li>
               ))}
             </ul>
           </Section>
         </>
       )}
-      <button className="fab" aria-label="Добавить регулярный платёж" onClick={() => setEditing('new')}>
-        +
-      </button>
+      {data && data.length > 0 && (
+        <button className="fab" aria-label="Добавить регулярный платёж" onClick={() => setEditing('new')}>
+          <Plus size={26} strokeWidth={2.4} />
+        </button>
+      )}
       {editing && (
         <RecurringForm
           meta={meta}
@@ -149,32 +169,26 @@ function RecurringForm({
           { value: 'INCOME', label: 'Доход' },
         ]}
       />
-      <Field label="Название">
-        <input className="input" placeholder="Netflix, аренда…" maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      <div className="form-row">
-        <Field label="Сумма">
-          <input className="input input--amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </Field>
-        <Field label="Валюта">
-          <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {meta.currencies.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
+      <div className={type === 'INCOME' ? 'amount-field amount-field--income' : 'amount-field'}>
+        <input className="amount-field__input" inputMode="decimal" placeholder="0" aria-label="Сумма" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <select className="amount-field__currency" aria-label="Валюта" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          {meta.currencies.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
       </div>
-      <Field label="Категория">
-        <CategoryPicker categories={categories} type={type} value={categoryId} onChange={setCategoryId} />
+      <Field label="Название">
+        <input className="input" placeholder="Например, Netflix или аренда" maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
+      <CategoryPicker categories={categories} type={type} value={categoryId} onChange={setCategoryId} />
       <Field label="Когда">
         <Segmented
           value={kind}
           onChange={setKind}
           options={[
-            { value: 'monthly', label: 'Каждый месяц' },
-            { value: 'weekly', label: 'Неделя' },
-            { value: 'yearly', label: 'Год' },
+            { value: 'monthly', label: 'Ежемесячно' },
+            { value: 'weekly', label: 'Еженедельно' },
+            { value: 'yearly', label: 'Ежегодно' },
           ]}
         />
       </Field>
@@ -208,20 +222,29 @@ function RecurringForm({
       </div>
       {kind === 'monthly' && day > 28 && <div className="hint">В коротких месяцах — в последний день</div>}
       {payment && (
-        <label className="toggle">
-          <input type="checkbox" checked={paused} onChange={(e) => setPaused(e.target.checked)} />
-          <span>На паузе (пропущенные даты не добавятся)</span>
+        <label className="switch">
+          <span className="switch__text">
+            Пауза
+            <span className="row__meta">Пропущенные даты не добавятся</span>
+          </span>
+          <input type="checkbox" role="switch" checked={paused} onChange={(e) => setPaused(e.target.checked)} />
         </label>
       )}
-      {error && <div className="form-error">{error}</div>}
-      <button className="button" disabled={busy} onClick={save}>
-        Сохранить
-      </button>
-      {payment && (
-        <button className="button button--destructive" disabled={busy} onClick={remove}>
-          Удалить
-        </button>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
       )}
+      <div className="sheet__actions">
+        <button className="button" disabled={busy} onClick={save}>
+          Сохранить
+        </button>
+        {payment && (
+          <button className="button button--destructive" disabled={busy} onClick={remove}>
+            Удалить платёж
+          </button>
+        )}
+      </div>
     </Sheet>
   )
 }

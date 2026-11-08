@@ -1,9 +1,11 @@
+import { Plus, ReceiptText, Repeat, Search, SearchX } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
 import { Empty, ErrorBox, Loader, Segmented } from '../components/Common'
 import { MonthSwitcher } from '../components/MonthSwitcher'
 import { dayTitle, money, monthRange } from '../format'
+import { CategoryIcon } from '../icons'
 import type { CategoryType, Meta, Operation } from '../types'
 import { useAsync } from '../useAsync'
 import { OperationForm } from './OperationForm'
@@ -58,60 +60,84 @@ export function OperationsScreen({ meta, categories, month, onMonthChange, categ
             { value: 'INCOME', label: 'Доходы' },
           ]}
         />
+        <div className="search">
+          <Search size={17} className="search__icon" aria-hidden="true" />
+          <input className="input search__input" type="search" placeholder="Поиск по заметке" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
         <div className="form-row">
-          <select className="input" value={categoryFilter ?? ''} onChange={(e) => onCategoryFilterChange(e.target.value ? Number(e.target.value) : undefined)}>
+          <select
+            className="input input--compact"
+            aria-label="Категория"
+            value={categoryFilter ?? ''}
+            onChange={(e) => onCategoryFilterChange(e.target.value ? Number(e.target.value) : undefined)}
+          >
             <option value="">Все категории</option>
             {categories.all.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.emoji} {c.name}
+                {c.name}
                 {c.archived ? ' (скрыта)' : ''}
               </option>
             ))}
           </select>
-          <select className="input input--narrow" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            <option value="">Валюта</option>
+          <select className="input input--compact input--narrow" aria-label="Валюта" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            <option value="">Все валюты</option>
             {meta.currencies.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>
         </div>
-        <input className="input" type="search" placeholder="Поиск по заметке" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading && !data && <Loader />}
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {data && data.length === 0 && <Empty icon="🧾">{filtersActive ? 'Ничего не нашлось' : 'В этом месяце операций нет'}</Empty>}
+      {data && data.length === 0 &&
+        (filtersActive ? (
+          <Empty icon={SearchX} title="Ничего не нашлось">
+            <p className="empty__text">Попробуй убрать фильтры или поменять месяц.</p>
+          </Empty>
+        ) : (
+          <Empty icon={ReceiptText} title="В этом месяце операций нет">
+            <button className="button button--inline" onClick={() => setEditing('new')}>
+              Добавить операцию
+            </button>
+          </Empty>
+        ))}
 
       {groups.map(([date, ops]) => {
         const expense = ops.filter((o) => o.type === 'EXPENSE').reduce((s, o) => s + o.amountBase, 0)
         return (
           <section key={date} className="section">
             <div className="section__header">
-              <span>{dayTitle(date, meta.today)}</span>
-              {expense > 0 && <span className="row__hint">−{money(expense)}</span>}
+              <h2>{dayTitle(date, meta.today)}</h2>
+              {expense > 0 && <span className="row__meta">−{money(expense)}</span>}
             </div>
-            <ul className="section__body list">
+            <ul className="section__body section__body--flush list">
               {ops.map((op) => (
-                <li key={op.id} className="row row--tappable" onClick={() => setEditing(op)}>
-                  <span className="row__emoji">{categories.get(op.categoryId).emoji}</span>
-                  <span className="row__main">
-                    <span>{op.note ?? categories.get(op.categoryId).name}</span>
-                    <span className="row__sub">
-                      {categories.get(op.categoryId).name}
-                      {op.recurringId ? ' · 🔁' : ''}
-                    </span>
-                  </span>
-                  <span className="row__right">
-                    <span className={op.type === 'INCOME' ? 'row__amount amount--income' : 'row__amount'}>
-                      {op.type === 'INCOME' ? '+' : '−'}
-                      {money(op.amount)} {op.currency !== meta.baseCurrency ? op.currency : ''}
-                    </span>
-                    {op.currency !== meta.baseCurrency && (
-                      <span className="row__sub">
-                        ≈ {money(op.amountBase)} {meta.baseCurrency}
+                <li key={op.id}>
+                  <button className="row row--button" onClick={() => setEditing(op)}>
+                    <CategoryIcon categories={categories} id={op.categoryId} />
+                    <span className="row__main">
+                      <span className="row__line">
+                        <span className="row__title">{op.note ?? categories.name(op.categoryId)}</span>
+                        <span className={op.type === 'INCOME' ? 'row__amount amount--income' : 'row__amount'}>
+                          {op.type === 'INCOME' ? '+' : '−'}
+                          {money(op.amount)}
+                          {op.currency !== meta.baseCurrency && <span className="row__currency"> {op.currency}</span>}
+                        </span>
                       </span>
-                    )}
-                  </span>
+                      <span className="row__line">
+                        <span className="row__meta row__meta--icon">
+                          {op.recurringId && <Repeat size={12} aria-label="Регулярный платёж" />}
+                          {categories.name(op.categoryId)}
+                        </span>
+                        {op.currency !== meta.baseCurrency && (
+                          <span className="row__meta">
+                            {money(op.amountBase)} {meta.baseCurrency}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -120,7 +146,7 @@ export function OperationsScreen({ meta, categories, month, onMonthChange, categ
       })}
 
       <button className="fab" aria-label="Добавить операцию" onClick={() => setEditing('new')}>
-        +
+        <Plus size={26} strokeWidth={2.4} />
       </button>
 
       {editing && (

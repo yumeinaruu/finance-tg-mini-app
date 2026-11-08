@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useEffect, type ReactNode } from 'react'
 import { tg } from '../telegram'
 
@@ -34,11 +35,12 @@ export function Sheet({ title, onClose, children }: Props) {
   }, [onClose])
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet__grabber" />
         <div className="sheet__header">
-          <span className="sheet__title">{title}</span>
-          <button className="icon-button" aria-label="Закрыть" onClick={onClose}>
-            ✕
+          <h2 className="sheet__title">{title}</h2>
+          <button className="icon-button icon-button--muted" aria-label="Закрыть" onClick={onClose}>
+            <X size={20} />
           </button>
         </div>
         <div className="sheet__body">{children}</div>

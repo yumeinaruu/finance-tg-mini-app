@@ -1,14 +1,16 @@
+import { Copy, Plus, Target, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
 import { Progress } from '../components/Charts'
-import { Empty, ErrorBox, Field, Loader, Section } from '../components/Common'
+import { Empty, ErrorBox, Loader, Section } from '../components/Common'
 import { MonthSwitcher } from '../components/MonthSwitcher'
 import { Sheet } from '../components/Sheet'
 import { useToast } from '../components/Toast'
 import { amountInput, money, parseAmount, percent, plural } from '../format'
 import { confirmAction, haptic } from '../telegram'
 import type { Budget } from '../types'
+import { CategoryIcon } from '../icons'
 import { useAsync } from '../useAsync'
 
 interface Props {
@@ -44,8 +46,8 @@ export function BudgetsScreen({ categories, base, today, month, onMonthChange }:
       {loading && !data && <Loader />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && data.length === 0 && (
-        <Empty icon="🎯">
-          На этот месяц бюджетов нет
+        <Empty icon={Target} title="На этот месяц бюджетов нет">
+          <p className="empty__text">Задай лимит на категорию, и бот предупредит, когда потратишь 80% и 100%.</p>
           <div className="empty__actions">
             <button className="button" onClick={() => setEditing('new')}>
               Добавить бюджет
@@ -58,47 +60,52 @@ export function BudgetsScreen({ categories, base, today, month, onMonthChange }:
       )}
       {data && data.length > 0 && (
         <>
-          <div className="card card--wide">
-            <div className="card__label">Потрачено из бюджетов, {base}</div>
-            <div className="card__value">
-              {money(totalSpent)} <span className="card__of">/ {money(totalLimit)}</span>
+          <section className="summary">
+            <div className="summary__line">
+              <span className="summary__amount">{money(Math.max(totalLimit - totalSpent, 0))}</span>
+              <span className="summary__caption">{base} осталось из {money(totalLimit)}</span>
             </div>
             <Progress value={totalSpent} limit={totalLimit} />
-          </div>
-          <Section>
+          </section>
+          <Section flush>
             <ul className="list">
               {data.map((b) => (
-                <li key={b.categoryId} className="budget-row row--tappable" onClick={() => setEditing(b)}>
-                  <div className="budget-row__top">
-                    <span>{categories.label(b.categoryId)}</span>
-                    <span className="row__hint">{percent(b.spent, b.limit)}%</span>
-                  </div>
-                  <Progress value={b.spent} limit={b.limit} />
-                  <div className="budget-row__bottom">
-                    <span>
-                      {money(b.spent)} из {money(b.limit)}
+                <li key={b.categoryId}>
+                  <button className="row row--button row--top" onClick={() => setEditing(b)}>
+                    <CategoryIcon categories={categories} id={b.categoryId} />
+                    <span className="row__main row__main--stack">
+                      <span className="row__line">
+                        <span className="row__title">{categories.name(b.categoryId)}</span>
+                        <span className="row__meta">{percent(b.spent, b.limit)}%</span>
+                      </span>
+                      <Progress value={b.spent} limit={b.limit} />
+                      <span className="row__line">
+                        <span className="row__meta">
+                          {money(b.spent)} из {money(b.limit)}
+                        </span>
+                        <span className={b.spent > b.limit ? 'row__meta amount--expense' : 'row__meta'}>
+                          {b.spent > b.limit ? `перерасход ${money(b.spent - b.limit)}` : `осталось ${money(b.limit - b.spent)}`}
+                        </span>
+                      </span>
+                      {b.forecast !== null && b.forecast > b.spent && (
+                        <span className={b.forecast > b.limit ? 'row__meta row__meta--icon amount--warn' : 'row__meta row__meta--icon'}>
+                          <TrendingUp size={13} /> к концу месяца ≈ {money(b.forecast)}
+                        </span>
+                      )}
                     </span>
-                    <span className={b.spent > b.limit ? 'amount--expense' : ''}>
-                      {b.spent > b.limit ? `перерасход ${money(b.spent - b.limit)}` : `осталось ${money(b.limit - b.spent)}`}
-                    </span>
-                  </div>
-                  {b.forecast !== null && b.forecast > b.spent && (
-                    <div className={b.forecast > b.limit ? 'hint hint--warn' : 'hint'}>
-                      Прогноз к концу месяца ≈ {money(b.forecast)}
-                    </div>
-                  )}
+                  </button>
                 </li>
               ))}
             </ul>
           </Section>
           <div className="actions">
             {free.length > 0 && (
-              <button className="button" onClick={() => setEditing('new')}>
-                Добавить бюджет
+              <button className="button button--secondary button--icon" onClick={() => setEditing('new')}>
+                <Plus size={18} /> Добавить бюджет
               </button>
             )}
-            <button className="button button--secondary" onClick={copy}>
-              Скопировать с прошлого месяца
+            <button className="button button--plain button--icon" onClick={copy}>
+              <Copy size={16} /> Скопировать с прошлого месяца
             </button>
           </div>
         </>
@@ -116,7 +123,7 @@ export function BudgetsScreen({ categories, base, today, month, onMonthChange }:
           }}
         />
       )}
-      {today.slice(0, 7) !== month && <div className="hint hint--center">Бот предупреждает о лимитах только для текущего месяца</div>}
+      {today.slice(0, 7) !== month && data && data.length > 0 && <p className="hint hint--center">Прогноз считается только для текущего месяца</p>}
     </div>
   )
 }
@@ -172,30 +179,36 @@ function BudgetForm({
   }
 
   return (
-    <Sheet title={budget ? categories.label(budget.categoryId) : 'Новый бюджет'} onClose={onClose}>
+    <Sheet title={budget ? `Бюджет: ${categories.name(budget.categoryId)}` : 'Новый бюджет'} onClose={onClose}>
+      <div className="amount-field">
+        <input className="amount-field__input" inputMode="decimal" placeholder="0" aria-label="Лимит на месяц" value={limit} onChange={(e) => setLimit(e.target.value)} autoFocus />
+        <span className="amount-field__suffix">в месяц</span>
+      </div>
       {!budget && (
-        <Field label="Категория">
-          <div className="chips">
-            {free.map((id) => (
-              <button key={id} type="button" className={id === categoryId ? 'chip chip--active' : 'chip'} onClick={() => setCategoryId(id)}>
-                {categories.label(id)}
-              </button>
-            ))}
-          </div>
-        </Field>
+        <div className="tiles" role="radiogroup" aria-label="Категория">
+          {free.map((id) => (
+            <button key={id} type="button" role="radio" aria-checked={id === categoryId} className={id === categoryId ? 'tile tile--active' : 'tile'} onClick={() => setCategoryId(id)}>
+              <CategoryIcon categories={categories} id={id} />
+              <span className="tile__label">{categories.name(id)}</span>
+            </button>
+          ))}
+        </div>
       )}
-      <Field label="Лимит на месяц">
-        <input className="input input--amount" inputMode="decimal" placeholder="600" value={limit} onChange={(e) => setLimit(e.target.value)} autoFocus />
-      </Field>
-      {error && <div className="form-error">{error}</div>}
-      <button className="button" disabled={busy} onClick={save}>
-        Сохранить
-      </button>
-      {budget && (
-        <button className="button button--destructive" disabled={busy} onClick={remove}>
-          Убрать бюджет
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="sheet__actions">
+        <button className="button" disabled={busy} onClick={save}>
+          Сохранить
         </button>
-      )}
+        {budget && (
+          <button className="button button--destructive" disabled={busy} onClick={remove}>
+            Убрать бюджет
+          </button>
+        )}
+      </div>
     </Sheet>
   )
 }

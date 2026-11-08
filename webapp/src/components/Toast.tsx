@@ -1,3 +1,4 @@
+import { CircleAlert, Check } from 'lucide-react'
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 
 type Kind = 'info' | 'error'
@@ -16,6 +17,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toast && (
         <div className={`toast toast--${toast.kind}`} role="status">
+          {toast.kind === 'error' ? <CircleAlert size={16} /> : <Check size={16} />}
           {toast.text}
         </div>
       )}

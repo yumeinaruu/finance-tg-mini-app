@@ -1,7 +1,7 @@
 import type { Category, Meta } from './types'
 
-/** Chart colors, assigned to categories in a stable order. */
-const PALETTE = ['#3E88F7', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#06B6D4', '#F97316', '#EC4899', '#84CC16', '#64748B', '#A16207', '#14B8A6']
+/** Muted, saturated tones that stay readable on light and dark Telegram themes. */
+const PALETTE = ['#4C7DF0', '#E8833A', '#2BA88C', '#D6496E', '#8A63D2', '#3AA6C4', '#C9A227', '#6C8A3F', '#B4664A', '#5E6AD2', '#C2567F', '#4E9A62']
 
 export class Categories {
   private readonly byId: Map<number, Category>
@@ -17,16 +17,15 @@ export class Categories {
   }
 
   get(id: number): Category {
-    return this.byId.get(id) ?? { id, name: 'Без категории', emoji: '❔', type: 'EXPENSE', archived: true }
+    return this.byId.get(id) ?? { id, name: 'Без категории', emoji: '', type: 'EXPENSE', archived: true }
   }
 
   color(id: number): string {
-    return this.colors.get(id) ?? '#94A3B8'
+    return this.colors.get(id) ?? '#8E8E93'
   }
 
-  label(id: number): string {
-    const c = this.get(id)
-    return `${c.emoji} ${c.name}`
+  name(id: number): string {
+    return this.get(id).name
   }
 
   active(type?: Category['type']): Category[] {

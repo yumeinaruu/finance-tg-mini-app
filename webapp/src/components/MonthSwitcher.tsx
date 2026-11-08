@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addMonths, monthTitle } from '../format'
 
 interface Props {
@@ -12,16 +13,11 @@ export function MonthSwitcher({ month, onChange, max }: Props) {
   return (
     <div className="month-switcher">
       <button className="icon-button" aria-label="Предыдущий месяц" onClick={() => onChange(addMonths(month, -1))}>
-        ‹
+        <ChevronLeft size={22} />
       </button>
-      <span className="month-switcher__title">{monthTitle(month)}</span>
-      <button
-        className="icon-button"
-        aria-label="Следующий месяц"
-        disabled={max !== undefined && next > max}
-        onClick={() => onChange(next)}
-      >
-        ›
+      <h1 className="month-switcher__title">{monthTitle(month)}</h1>
+      <button className="icon-button" aria-label="Следующий месяц" disabled={max !== undefined && next > max} onClick={() => onChange(next)}>
+        <ChevronRight size={22} />
       </button>
     </div>
   )
