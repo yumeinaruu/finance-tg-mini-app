@@ -105,6 +105,37 @@ data class ExportInput(val from: String, val to: String)
 @Serializable
 data class ErrorDto(val error: String)
 
+@Serializable
+data class CategoryDetailsDto(
+    val id: Long,
+    val name: String,
+    val emoji: String,
+    val type: String,
+    val aliases: List<String>,
+    val operations: Int,
+    val total: Long,
+    val recurring: Int,
+)
+
+@Serializable
+data class CategoryCreateInput(val name: String, val type: String)
+
+@Serializable
+data class CategoryRenameInput(val name: String)
+
+@Serializable
+data class AliasInput(val word: String)
+
+@Serializable
+data class AliasDto(val alias: String)
+
+/** [rate] is BYN per 1 unit; [unit] is how many units are usually quoted (100 for RUB). */
+@Serializable
+data class RateDto(val currency: String, val rate: String, val unit: Int)
+
+@Serializable
+data class RatesDto(val date: String, val rates: List<RateDto>)
+
 fun Category.toDto(archived: Boolean = false) = CategoryDto(id, name, emoji, type.name, archived)
 
 fun Operation.toDto() = OperationDto(

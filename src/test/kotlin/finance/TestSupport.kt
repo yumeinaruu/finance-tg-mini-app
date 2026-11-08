@@ -120,7 +120,7 @@ class TestApp(
     )
 
     fun api(validator: finance.api.InitDataValidator) = finance.api.Api(
-        validator, categoryRepository, operations, entries, reports, budgets, recurring,
+        validator, categoryRepository, categories, rateService, backups, operations, entries, reports, budgets, recurring,
         finance.service.ExportService(operations), telegram.api, chatId, today,
     )
 

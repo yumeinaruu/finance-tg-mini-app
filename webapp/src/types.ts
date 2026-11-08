@@ -109,3 +109,26 @@ export interface OperationFilter {
   currency?: string
   q?: string
 }
+
+export interface CategoryDetails {
+  id: number
+  name: string
+  emoji: string
+  type: CategoryType
+  aliases: string[]
+  operations: number
+  total: number
+  recurring: number
+}
+
+export interface Rate {
+  currency: string
+  /** BYN per 1 unit. */
+  rate: string
+  unit: number
+}
+
+export interface Rates {
+  date: string
+  rates: Rate[]
+}

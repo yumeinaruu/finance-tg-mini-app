@@ -1,6 +1,10 @@
 import { initData } from './telegram'
 import type {
   Budget,
+  Category,
+  CategoryDetails,
+  CategoryType,
+  Rates,
   Meta,
   MonthReport,
   Operation,
@@ -78,4 +82,15 @@ export const api = {
 
   monthly: (months = 12) => request<MonthReport[]>('GET', `/reports/monthly?months=${months}`),
   exportCsv: (from: string, to: string) => request<void>('POST', '/export', { from, to }),
+
+  categories: () => request<CategoryDetails[]>('GET', '/categories'),
+  createCategory: (name: string, type: CategoryType) => request<Category>('POST', '/categories', { name, type }),
+  renameCategory: (id: number, name: string) => request<Category>('PUT', `/categories/${id}`, { name }),
+  deleteCategory: (id: number, options: { moveTo?: number; hide?: boolean } = {}) =>
+    request<void>('DELETE', `/categories/${id}?${query({ moveTo: options.moveTo, hide: options.hide ? 'true' : undefined })}`),
+  addAlias: (id: number, word: string) => request<{ alias: string }>('POST', `/categories/${id}/aliases`, { word }),
+  removeAlias: (id: number, word: string) => request<void>('DELETE', `/categories/${id}/aliases/${encodeURIComponent(word)}`),
+
+  rates: () => request<Rates>('GET', '/rates'),
+  backup: () => request<void>('POST', '/backup'),
 }

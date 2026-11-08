@@ -7,7 +7,12 @@ import finance.domain.NewOperation
 import finance.rates.RateUnavailableException
 import finance.repo.CategoryRepository
 import finance.repo.OperationRepository
+import finance.rates.RateService
+import finance.service.AddCategoryResult
+import finance.service.BackupService
 import finance.service.BudgetService
+import finance.service.CategoryInput
+import finance.service.CategoryService
 import finance.service.EntryService
 import finance.service.ExportService
 import finance.service.RecurringService
@@ -43,6 +48,9 @@ class ApiException(val status: HttpStatusCode, message: String) : RuntimeExcepti
 class Api(
     val validator: InitDataValidator,
     val categories: CategoryRepository,
+    val categoryService: CategoryService,
+    val rates: RateService,
+    val backups: BackupService,
     val operations: OperationRepository,
     val entries: EntryService,
     val reports: ReportService,
@@ -95,6 +103,8 @@ fun Application.financeApi(api: Api) {
             budgetRoutes(api)
             recurringRoutes(api)
             reportRoutes(api)
+            categoryRoutes(api)
+            serviceRoutes(api)
         }
     }
 }
@@ -262,6 +272,98 @@ private fun Route.reportRoutes(api: Api) {
         api.telegram.sendDocument(api.ownerId, "finance-$from-$to.csv", csv.toByteArray(), "📄 Операции с $from по $to")
         call.respond(HttpStatusCode.NoContent)
     }
+}
+
+private fun Route.categoryRoutes(api: Api) {
+    route("/categories") {
+        get {
+            val aliases = api.categories.aliasesByCategory()
+            val result = api.categories.activeAll().map { category ->
+                val usage = api.categoryService.usage(category.id)
+                CategoryDetailsDto(
+                    id = category.id,
+                    name = category.name,
+                    emoji = category.emoji,
+                    type = category.type.name,
+                    aliases = aliases[category.id].orEmpty(),
+                    operations = usage.operations,
+                    total = usage.totalMinor,
+                    recurring = usage.recurring,
+                )
+            }
+            call.respond(result)
+        }
+        post {
+            val input = call.receive<CategoryCreateInput>()
+            val type = runCatching { CategoryType.valueOf(input.type) }.getOrElse { throw ApiException(HttpStatusCode.BadRequest, "Неизвестный тип категории") }
+            val name = categoryName(input.name)
+            when (val result = api.categoryService.add(CategoryInput(name, null, type))) {
+                is AddCategoryResult.Created -> call.respond(HttpStatusCode.Created, result.category.toDto())
+                is AddCategoryResult.Restored -> call.respond(HttpStatusCode.OK, result.category.toDto())
+                is AddCategoryResult.Exists -> throw ApiException(HttpStatusCode.Conflict, "Категория «${result.category.name}» уже есть")
+            }
+        }
+        put("/{id}") {
+            val category = api.activeCategory(call.idParam())
+            val name = categoryName(call.receive<CategoryRenameInput>().name)
+            val renamed = api.categoryService.rename(category, name, null)
+                ?: throw ApiException(HttpStatusCode.Conflict, "Категория «$name» уже есть")
+            call.respond(renamed.toDto())
+        }
+        delete("/{id}") {
+            val category = api.activeCategory(call.idParam())
+            val moveTo = call.request.queryParameters["moveTo"]?.toLongOrNull()
+            val hide = call.request.queryParameters["hide"] == "true"
+            when {
+                api.categoryService.usage(category.id).isEmpty -> api.categoryService.delete(category.id)
+                moveTo != null -> {
+                    val target = api.activeCategory(moveTo)
+                    if (target.id == category.id || target.type != category.type) {
+                        throw ApiException(HttpStatusCode.BadRequest, "Перенести можно только в другую категорию того же типа")
+                    }
+                    api.categoryService.moveAndDelete(category.id, target.id)
+                }
+                hide -> api.categoryService.archive(category.id)
+                else -> throw ApiException(HttpStatusCode.Conflict, "В категории есть операции: перенеси их или скрой категорию")
+            }
+            call.respond(HttpStatusCode.NoContent)
+        }
+        post("/{id}/aliases") {
+            val category = api.activeCategory(call.idParam())
+            val alias = api.categoryService.setAlias(call.receive<AliasInput>().word.trim(), category)
+                ?: throw ApiException(HttpStatusCode.BadRequest, "В слове должны быть буквы или цифры")
+            call.respond(AliasDto(alias))
+        }
+        delete("/{id}/aliases/{word}") {
+            api.activeCategory(call.idParam())
+            if (!api.categoryService.removeAlias(call.parameters["word"].orEmpty())) throw notFound()
+            call.respond(HttpStatusCode.NoContent)
+        }
+    }
+}
+
+private fun Route.serviceRoutes(api: Api) {
+    get("/rates") {
+        val today = api.today()
+        val rates = api.rates.rates(today).map { (currency, rate) -> RateDto(currency.code, rate.toPlainString(), currency.rateUnit) }
+        call.respond(RatesDto(today.toString(), rates))
+    }
+    post("/backup") {
+        val today = api.today()
+        val backup = api.backups.create(today)
+        api.telegram.sendDocument(api.ownerId, backup.fileName, backup.content, "💾 Бэкап базы на $today · ${backup.operations} операций")
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+private fun Api.activeCategory(id: Long): Category =
+    categories.activeAll().firstOrNull { it.id == id } ?: throw notFound()
+
+private fun categoryName(raw: String): String {
+    val name = raw.trim().replace(Regex("\\s+"), " ").replaceFirstChar { it.uppercaseChar() }
+    if (name.isEmpty()) throw ApiException(HttpStatusCode.BadRequest, "Укажи название")
+    if (name.length > CategoryInput.MAX_NAME_LENGTH) throw ApiException(HttpStatusCode.BadRequest, "Название длиннее ${CategoryInput.MAX_NAME_LENGTH} символов")
+    return name
 }
 
 private fun OperationInput.validate(api: Api): Pair<Category, NewOperation> {

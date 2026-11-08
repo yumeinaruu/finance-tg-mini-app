@@ -1,8 +1,9 @@
-import { CircleAlert, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, CircleAlert, type LucideIcon } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { Categories } from '../categories'
 import { CategoryIcon } from '../icons'
 import type { CategoryType } from '../types'
+import { useBackButton } from './Sheet'
 
 export function Loader() {
   return <div className="loader" aria-label="Загрузка" />
@@ -106,5 +107,18 @@ export function Field({ label, children }: { label: string; children: ReactNode 
       <span className="field__label">{label}</span>
       {children}
     </label>
+  )
+}
+
+/** Title of a nested page with an in-page back button; Telegram's native back button does the same. */
+export function PageHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  useBackButton(true, onBack)
+  return (
+    <div className="page-header">
+      <button className="icon-button" aria-label="Назад" onClick={onBack}>
+        <ChevronLeft size={24} />
+      </button>
+      <h1 className="page-header__title">{title}</h1>
+    </div>
   )
 }

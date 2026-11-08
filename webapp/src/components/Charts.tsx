@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { money } from '../format'
+import { compact, money } from '../format'
 
 export interface Slice {
   id: number
@@ -107,12 +107,20 @@ export interface Series {
   values: number[]
 }
 
-/** Income and expense lines by month, with a soft area under each line. */
+/** Rounds the axis maximum up to a round step (1, 1.5, 2 … 8) times a power of ten (in minor units). */
+function niceMax(value: number): number {
+  if (value <= 0) return 100
+  const magnitude = 10 ** Math.floor(Math.log10(value))
+  const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((m) => m * magnitude >= value) ?? 10
+  return step * magnitude
+}
+
+/** Income and expense lines by month with a value axis and a soft area under each line. */
 export function LineChart({ series, labels }: { series: Series[]; labels: string[] }) {
   const width = 320
-  const height = 150
-  const pad = { top: 12, right: 10, bottom: 22, left: 10 }
-  const max = Math.max(...series.flatMap((s) => s.values), 1)
+  const height = 160
+  const pad = { top: 10, right: 8, bottom: 22, left: 40 }
+  const max = niceMax(Math.max(...series.flatMap((s) => s.values), 0))
   const step = labels.length > 1 ? (width - pad.left - pad.right) / (labels.length - 1) : 0
   const x = (i: number) => pad.left + i * step
   const y = (v: number) => pad.top + (1 - v / max) * (height - pad.top - pad.bottom)
@@ -127,10 +135,14 @@ export function LineChart({ series, labels }: { series: Series[]; labels: string
           </linearGradient>
         ))}
       </defs>
-      {[0.5, 1].map((f) => (
-        <line key={f} x1={pad.left} x2={width - pad.right} y1={y(max * f)} y2={y(max * f)} className="chart-grid" />
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+        <g key={f}>
+          <line x1={pad.left} x2={width - pad.right} y1={y(max * f)} y2={y(max * f)} className={f === 0 ? 'chart-grid chart-grid--base' : 'chart-grid'} />
+          <text x={pad.left - 6} y={y(max * f) + 3.5} className="chart-axis" textAnchor="end">
+            {compact(max * f)}
+          </text>
+        </g>
       ))}
-      <line x1={pad.left} x2={width - pad.right} y1={bottom} y2={bottom} className="chart-grid" />
       {series.map((s, i) => {
         const points = s.values.map((v, j) => `${x(j)},${y(v)}`).join(' ')
         return (

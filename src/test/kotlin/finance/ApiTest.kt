@@ -264,4 +264,82 @@ class ApiTest {
         assertTrue("2026-11-08;expense;Еда;5.00;BYN;1;5.00;кофе" in upload)
         assertTrue("\"обед; с другом\"" in upload, "fields with separators are quoted")
     }
+
+    @Test
+    fun `categories are listed with words and usage`() = test { client ->
+        app.send("кофе 5")
+        val food = client.call("GET", "/api/categories").json().arr.first { it.str("name") == "Еда" }
+        assertEquals(1, food.num("operations"))
+        assertEquals(500, food.num("total"))
+        assertTrue("кофе" in food.obj.getValue("aliases").arr.map { it.jsonPrimitive.content })
+        assertEquals(11, client.call("GET", "/api/categories").json().arr.size)
+    }
+
+    @Test
+    fun `category is created, renamed and restored`() = test { client ->
+        val created = client.call("POST", "/api/categories", """{"name":"  спорт  ","type":"EXPENSE"}""")
+        assertEquals(HttpStatusCode.Created, created.status)
+        assertEquals("Спорт", created.json().str("name"))
+        val id = created.json().num("id")
+
+        val conflict = client.call("POST", "/api/categories", """{"name":"спорт","type":"EXPENSE"}""")
+        assertEquals(HttpStatusCode.Conflict, conflict.status)
+        assertEquals("Категория «Спорт» уже есть", conflict.json().str("error"))
+        assertEquals(HttpStatusCode.Created, client.call("POST", "/api/categories", """{"name":"Спорт","type":"INCOME"}""").status, "names are unique per type")
+
+        assertEquals("Фитнес", client.call("PUT", "/api/categories/$id", """{"name":"фитнес"}""").json().str("name"))
+        assertEquals(HttpStatusCode.Conflict, client.call("PUT", "/api/categories/$id", """{"name":"Еда"}""").status)
+
+        app.send("фитнес 30")
+        assertEquals(HttpStatusCode.NoContent, client.call("DELETE", "/api/categories/$id?hide=true").status)
+        assertEquals(HttpStatusCode.OK, client.call("POST", "/api/categories", """{"name":"Фитнес","type":"EXPENSE"}""").status, "hidden category is restored")
+
+        assertEquals(HttpStatusCode.BadRequest, client.call("POST", "/api/categories", """{"name":" ","type":"EXPENSE"}""").status)
+        assertEquals(HttpStatusCode.BadRequest, client.call("POST", "/api/categories", """{"name":"${"а".repeat(33)}","type":"EXPENSE"}""").status)
+        assertEquals(HttpStatusCode.BadRequest, client.call("POST", "/api/categories", """{"name":"X","type":"OTHER"}""").status)
+    }
+
+    @Test
+    fun `used category must be moved or hidden before deletion`() = test { client ->
+        app.send("кино 20")
+        val fun_ = app.categoryId("Развлечения")
+        val gifts = app.categoryId("Подарки")
+
+        assertEquals(HttpStatusCode.Conflict, client.call("DELETE", "/api/categories/$fun_").status)
+        assertEquals(HttpStatusCode.BadRequest, client.call("DELETE", "/api/categories/$fun_?moveTo=${app.categoryId("Зарплата")}").status, "different type")
+        assertEquals(HttpStatusCode.BadRequest, client.call("DELETE", "/api/categories/$fun_?moveTo=$fun_").status, "same category")
+
+        assertEquals(HttpStatusCode.NoContent, client.call("DELETE", "/api/categories/$fun_?moveTo=$gifts").status)
+        assertEquals(HttpStatusCode.NotFound, client.call("DELETE", "/api/categories/$fun_").status)
+        assertTrue(app.send("кино 5").text.startsWith("🎁 Подарки"), "operations and words moved")
+
+        val unused = app.categoryId("Прочий доход")
+        assertEquals(HttpStatusCode.NoContent, client.call("DELETE", "/api/categories/$unused").status, "unused category is deleted right away")
+    }
+
+    @Test
+    fun `words are added and removed`() = test { client ->
+        val health = app.categoryId("Здоровье")
+        assertEquals("бассейн", client.call("POST", "/api/categories/$health/aliases", """{"word":" Бассейн "}""").json().str("alias"))
+        assertTrue(app.send("бассейн 15").text.startsWith("💊 Здоровье"))
+        assertEquals(HttpStatusCode.NoContent, client.call("DELETE", "/api/categories/$health/aliases/бассейн").status)
+        assertEquals(HttpStatusCode.NotFound, client.call("DELETE", "/api/categories/$health/aliases/бассейн").status)
+        assertEquals(HttpStatusCode.BadRequest, client.call("POST", "/api/categories/$health/aliases", """{"word":"!!!"}""").status)
+    }
+
+    @Test
+    fun `rates and backup`() = test { client ->
+        val rates = client.call("GET", "/api/rates").json()
+        assertEquals("2026-11-08", rates.str("date"))
+        val rub = rates.obj.getValue("rates").arr.first { it.str("currency") == "RUB" }
+        assertEquals("0.036600", rub.str("rate"))
+        assertEquals(100, rub.num("unit"))
+
+        app.send("кофе 5")
+        app.telegram.clear()
+        assertEquals(HttpStatusCode.NoContent, client.call("POST", "/api/backup").status)
+        val upload = app.telegram.last("sendDocument").raw
+        assertTrue("finance-2026-11-08.db" in upload)
+        assertTrue("SQLite format 3" in upload)
+    }
 }

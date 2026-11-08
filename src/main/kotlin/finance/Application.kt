@@ -98,6 +98,9 @@ fun main() {
             Api(
                 validator = InitDataValidator(config.botToken, config.ownerId),
                 categories = categoryRepository,
+                categoryService = categories,
+                rates = rates,
+                backups = backups,
                 operations = operations,
                 entries = entries,
                 reports = reports,

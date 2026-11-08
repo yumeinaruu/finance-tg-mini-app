@@ -1236,3 +1236,135 @@ select.input,
 .section__body .input {
   background-color: var(--fill);
 }
+
+/* ---------- nested pages and the "more" menu ---------- */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -10px;
+  padding-top: 4px;
+}
+
+.page-header__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.menu-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: #fff;
+}
+
+.row__chevron {
+  flex: none;
+  color: var(--hint);
+  opacity: 0.6;
+}
+
+.row__main > .row__meta {
+  white-space: normal;
+}
+
+.currency-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--fill);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* a row that holds a native date input on its right */
+.row--field {
+  justify-content: space-between;
+  min-height: 50px;
+  cursor: pointer;
+}
+
+.row__date {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 500;
+  text-align: right;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.row__date::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.input-action {
+  display: flex;
+  gap: 8px;
+}
+
+.input-action .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-action .button--inline {
+  height: 46px;
+  padding: 0 16px;
+}
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.word {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 4px 5px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.word button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--hint);
+}
+
+.danger-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--destructive) 7%, var(--surface));
+}
+
+.danger-zone .tile {
+  background: var(--surface);
+}
+
+.chart-grid--base {
+  stroke: var(--hint);
+  stroke-opacity: 0.35;
+}

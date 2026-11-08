@@ -1,24 +1,20 @@
-import { Send } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import type { Categories } from '../categories'
 import { LineChart } from '../components/Charts'
-import { ErrorBox, Field, Loader, ScreenTitle, Section } from '../components/Common'
-import { useToast } from '../components/Toast'
-import { money, monthRange, monthShort, monthTitle } from '../format'
-import { haptic } from '../telegram'
+import { ErrorBox, Loader, PageHeader, Section } from '../components/Common'
+import { money, monthShort, monthTitle } from '../format'
 import { CategoryIcon } from '../icons'
 import type { Meta, MonthReport } from '../types'
 import { useAsync } from '../useAsync'
 
-export function ReportsScreen({ categories, meta }: { categories: Categories; meta: Meta }) {
+export function ReportsScreen({ categories, meta, onBack }: { categories: Categories; meta: Meta; onBack: () => void }) {
   const { data, error, loading, reload } = useAsync(() => api.monthly(12), [])
   const base = meta.baseCurrency
-  const today = meta.today
 
   return (
     <div className="screen">
-      <ScreenTitle>Отчёты</ScreenTitle>
+      <PageHeader title="Отчёты" onBack={onBack} />
       {loading && !data && <Loader />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && (
@@ -44,20 +40,6 @@ export function ReportsScreen({ categories, meta }: { categories: Categories; me
           <Averages categories={categories} months={data} />
         </>
       )}
-      <Export today={today} />
-      <Section title="Настройки">
-        <dl className="settings">
-          <div>
-            <dt>Основная валюта</dt>
-            <dd>{base}</dd>
-          </div>
-          <div>
-            <dt>Валюты</dt>
-            <dd>{meta.currencies.join(', ')}</dd>
-          </div>
-        </dl>
-        <p className="hint">Категории и слова для них настраиваются в чате с ботом: /categories, /cat, /alias.</p>
-      </Section>
     </div>
   )
 }
@@ -156,43 +138,6 @@ function Averages({ categories, months }: { categories: Categories; months: Mont
           </li>
         ))}
       </ul>
-    </Section>
-  )
-}
-
-function Export({ today }: { today: string }) {
-  const toast = useToast()
-  const { from: monthStart } = monthRange(today.slice(0, 7))
-  const [from, setFrom] = useState(monthStart)
-  const [to, setTo] = useState(today)
-  const [busy, setBusy] = useState(false)
-
-  const send = async () => {
-    setBusy(true)
-    try {
-      await api.exportCsv(from, to)
-      haptic('success')
-      toast('Файл отправлен в чат с ботом')
-    } catch (e) {
-      toast((e as Error).message, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Section title="Выгрузка в CSV">
-      <div className="form-row">
-        <Field label="С">
-          <input className="input" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="По">
-          <input className="input" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-      </div>
-      <button className="button button--secondary button--icon" disabled={busy || !from || !to} onClick={send}>
-        <Send size={17} /> Отправить файл в чат
-      </button>
     </Section>
   )
 }
